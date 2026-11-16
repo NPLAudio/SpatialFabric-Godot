@@ -1,0 +1,64 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://examples/four_rooms/room_showcase.gd" id="1"]
+[ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_stage.gd" id="2"]
+[ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_manager.gd" id="3"]
+[ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_object.gd" id="4"]
+[ext_resource type="Script" path="res://addons/spatial_fabric/runtime/playback_cue.gd" id="5"]
+
+[node name="RoomShowcase" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Stage" type="Node3D" parent="."]
+position = Vector3(0, 3, 0)
+script = ExtResource("2")
+persistent_key = "godot-showcase-stage"
+
+[node name="Manager" type="Node3D" parent="."]
+script = ExtResource("3")
+persistent_key = "godot-showcase-manager"
+stage_path = NodePath("../Stage")
+object_paths = Array[NodePath]([NodePath("../Object1"), NodePath("../Object2"), NodePath("../Object3"), NodePath("../Object4")])
+cue_paths = Array[NodePath]([NodePath("../Mono"), NodePath("../Stereo"), NodePath("../Replay")])
+
+[node name="Object1" type="Node3D" parent="."]
+position = Vector3(-3, 2, -3)
+script = ExtResource("4")
+persistent_key = "godot-showcase-object-1"
+object_id = 1
+
+[node name="Object2" type="Node3D" parent="."]
+position = Vector3(3, 3, -3)
+script = ExtResource("4")
+persistent_key = "godot-showcase-object-2"
+object_id = 2
+
+[node name="Object3" type="Node3D" parent="."]
+position = Vector3(-3, 4, 3)
+script = ExtResource("4")
+persistent_key = "godot-showcase-object-3"
+object_id = 3
+
+[node name="Object4" type="Node3D" parent="."]
+position = Vector3(3, 2, 3)
+script = ExtResource("4")
+persistent_key = "godot-showcase-object-4"
+object_id = 4
+
+[node name="Mono" type="Node3D" parent="."]
+script = ExtResource("5")
+persistent_key = "godot-showcase-mono"
+osc_base = "/godot/playback/mono"
+output_channel = 1
+
+[node name="Stereo" type="Node3D" parent="."]
+script = ExtResource("5")
+persistent_key = "godot-showcase-stereo"
+osc_base = "/godot/playback/stereo"
+output_channel = 0
+
+[node name="Replay" type="Node3D" parent="."]
+script = ExtResource("5")
+persistent_key = "godot-showcase-replay"
+osc_base = "/godot/playback/replay"
+output_channel = 2

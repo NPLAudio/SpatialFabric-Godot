@@ -1,0 +1,15 @@
+.godot/
+.pi/
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+dist/
+build/
+exports/
+export_credentials.cfg
+*.exe
+*.dll
+*.dylib
+*.so
+*.pdb
