@@ -16,6 +16,7 @@ extends Node3D
 @export var allow_remote_discovery: bool = false
 @export var adm_enabled: bool = false
 @export var adm_host: String = "127.0.0.1"
+@export var monitor_host: String = "127.0.0.1"
 @export_enum("XYZ", "AED", "Both") var adm_mode: int = 0
 @export_range(1.0, 240.0) var adm_rate_hz: float = 30.0
 var last_error: String = ""
@@ -43,10 +44,43 @@ func start_networking() -> Error:
 		return result
 	transport = candidate
 	last_error = ""
+	for cue in _cues():
+		cue.state_changed.connect(_on_cue_state.bind(cue))
 	set_process(true)
 	return OK
 
+func _cues() -> Array[SpatialFabricPlaybackCue]:
+	var out: Array[SpatialFabricPlaybackCue] = []
+	for path in cue_paths:
+		var cue := get_node_or_null(path) as SpatialFabricPlaybackCue
+		if cue != null:
+			out.append(cue)
+	return out
+
+## Observed worker lifecycle only (1/0), never an acknowledgement of the request.
+func _on_cue_state(playing: bool, cue: SpatialFabricPlaybackCue) -> void:
+	if is_listening():
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if playing else 0.0]))
+
+func _dispatch_playback(message: Dictionary) -> void:
+	for cue in _cues():
+		var tail: String = message.address.trim_prefix(cue.osc_base + "/") if message.address.begins_with(cue.osc_base + "/") else ""
+		match tail:
+			"play":
+				if SpatialFabricPlaybackControl.should_play(message.args):
+					cue.try_play()
+			"stop":
+				cue.stop()
+			"loop":
+				var value: Variant = SpatialFabricPlaybackControl.loop_value(message.args)
+				if value != null:
+					cue.set_loop(value)
+
 func stop_networking() -> void:
+	for cue in _cues():
+		var bound := _on_cue_state.bind(cue)
+		if cue.state_changed.is_connected(bound):
+			cue.state_changed.disconnect(bound)
 	if transport != null:
 		transport.close()
 	transport = null
@@ -59,6 +93,9 @@ func _process(delta: float) -> void:
 	if not is_listening():
 		return
 	for message in transport.poll():
+		if message.port == playback_input_port and message.address != SpatialFabricSceneQuery.QUERY:
+			_dispatch_playback(message)
+			continue
 		if message.address != SpatialFabricSceneQuery.QUERY:
 			continue
 		var request := SpatialFabricSceneQuery.parse(message.args)
@@ -171,13 +208,14 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 		elif item is SpatialFabricPlaybackCue:
 			row["osc_base"] = item.osc_base
 			row["output_channel"] = item.output_channel
-			row["playing"] = false
-			row["prepared"] = false
-			row["backend_status"] = "unavailable"
+			row["playing"] = item.is_playing()
+			row["prepared"] = item.is_prepared()
+			row["loop"] = item.loop
+			row["backend_status"] = "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"
 		rows.append(row)
 	var end: int = mini(offset + limit, rows.size())
 	var page_rows: Array[Dictionary] = rows.slice(mini(offset, rows.size()), end)
-	var page := {"schema": "org.nplaudio.spatialfabric.scene", "schema_version": 1, "engine": "Godot", "world": scope.scene_file_path, "world_type": "Editor" if Engine.is_editor_hint() else "Game", "snapshot_utc": Time.get_datetime_string_from_system(true) + "Z", "coordinates": "Canonical front/right/up = Godot -Z/X/Y meters; world_transform.position_cm is canonical centimeters.", "playback_network": {"listening": is_listening(), "status": "listening" if is_listening() else "stopped", "requested_port": playback_input_port, "native_playback": "unavailable"}, "offset": offset, "limit": limit, "returned": page_rows.size(), "total": rows.size(), "next_offset": end if end < rows.size() else -1, "objects": page_rows}
+	var page := {"schema": "org.nplaudio.spatialfabric.scene", "schema_version": 1, "engine": "Godot", "world": scope.scene_file_path, "world_type": "Editor" if Engine.is_editor_hint() else "Game", "snapshot_utc": Time.get_datetime_string_from_system(true) + "Z", "coordinates": "Canonical front/right/up = Godot -Z/X/Y meters; world_transform.position_cm is canonical centimeters.", "playback_network": {"listening": is_listening(), "status": "listening" if is_listening() else "stopped", "requested_port": playback_input_port, "native_playback": "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"}, "offset": offset, "limit": limit, "returned": page_rows.size(), "total": rows.size(), "next_offset": end if end < rows.size() else -1, "objects": page_rows}
 	if JSON.stringify(page).to_utf8_buffer().size() > 96 * 1024:
 		return _error("Page exceeds 96 KiB.")
 	return page

@@ -49,16 +49,22 @@ object_id = 4
 script = ExtResource("5")
 persistent_key = "godot-showcase-mono"
 osc_base = "/godot/playback/mono"
+source_path = "res://examples/four_rooms/audio/SW_SF_MonoCue.wav"
 output_channel = 1
 
 [node name="Stereo" type="Node3D" parent="."]
 script = ExtResource("5")
 persistent_key = "godot-showcase-stereo"
 osc_base = "/godot/playback/stereo"
+source_path = "res://examples/four_rooms/audio/SW_SF_StereoLoop.wav"
+loop = true
 output_channel = 0
 
 [node name="Replay" type="Node3D" parent="."]
 script = ExtResource("5")
 persistent_key = "godot-showcase-replay"
 osc_base = "/godot/playback/replay"
+source_path = "res://examples/four_rooms/audio/SW_SF_ReplayCue.wav"
+auto_replay = true
+replay_delay_seconds = 2.5
 output_channel = 2

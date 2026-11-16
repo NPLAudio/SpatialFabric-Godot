@@ -74,9 +74,36 @@ func run() -> void:
 	check(manager.get_scene_page().has("error") and b.persistent_key==a.persistent_key,"duplicate keys rejected without discovery repair")
 	b.persistent_key = original
 	var cue := scene.get_node("Mono") as SpatialFabricPlaybackCue
-	check(not cue.try_play() and not cue.is_playing() and cue.prepare_source()==ERR_UNAVAILABLE and cue.refresh_devices()==ERR_UNAVAILABLE,"native backend fails closed without mixer fallback")
+	check(not cue.try_play() and not cue.is_playing() and not cue.is_prepared() and not cue.last_error.is_empty(), "unprepared cue refuses play without a mixer fallback")
 	cue.stop()
-	check(not cue.is_playing(),"stop never invents Playing state")
+	check(not cue.is_playing(), "stop never invents Playing state")
+	check(SpatialFabricPlaybackControl.should_play([]) and SpatialFabricPlaybackControl.should_play([0.5]) and not SpatialFabricPlaybackControl.should_play([0.49]) and SpatialFabricPlaybackControl.should_play([1]) and not SpatialFabricPlaybackControl.should_play([0]) and not SpatialFabricPlaybackControl.should_play(["go"]), "play trigger semantics")
+	check(SpatialFabricPlaybackControl.should_play([0, 0.9]) == true and SpatialFabricPlaybackControl.should_play([1, 0.1]) == false, "first float anywhere precedes first int")
+	check(SpatialFabricPlaybackControl.loop_value([0.5]) == false and SpatialFabricPlaybackControl.loop_value([0.51]) == true and SpatialFabricPlaybackControl.loop_value([1]) == true and SpatialFabricPlaybackControl.loop_value([]) == false and SpatialFabricPlaybackControl.loop_value(["x"]) == null, "loop trigger semantics")
+	var wavs := {"SW_SF_MonoCue.wav": 1, "SW_SF_StereoLoop.wav": 2, "SW_SF_ReplayCue.wav": 1}
+	for name in wavs:
+		var wav := SpatialFabricWav.load_file("res://examples/four_rooms/audio/" + name)
+		check(wav.ok and wav.channels == wavs[name] and wav.rate == 48000 and wav.samples.size() > 4800, "WAV decode / " + name)
+	check(not SpatialFabricWav.decode(PackedByteArray([1, 2, 3])).ok and not SpatialFabricWav.load_file("res://missing.wav").ok, "WAV rejects invalid input")
+	var tiny := FileAccess.get_file_as_bytes("res://examples/four_rooms/audio/SW_SF_MonoCue.wav")
+	var broken := tiny.slice(0, 30)
+	check(not SpatialFabricWav.decode(broken).ok, "WAV rejects truncated header")
+	var script: Script = scene.get_script()
+	check(script.cue_name_at(Vector3(-5, 1, 14)) == "Mono" and script.cue_name_at(Vector3(-5, 1, 21)) == "Stereo" and script.cue_name_at(Vector3(-5, 1, 28)) == "Replay" and script.cue_name_at(Vector3(-11.5, 1, 14)) == "" and script.cue_name_at(Vector3(0, 1, 0)) == "", "room-to-cue mapping")
+	var replay := scene.get_node("Replay") as SpatialFabricPlaybackCue
+	var events: Array = []
+	replay.state_changed.connect(func(on: bool): events.append(on))
+	replay.observe({"state": 2, "reason": 0, "started_sequence": 1, "ended_sequence": 0, "error": ""})
+	check(replay.is_playing() and events == [true], "observed start becomes Playing")
+	replay.observe({"state": 0, "reason": 1, "started_sequence": 1, "ended_sequence": 1, "error": ""})
+	check(not replay.is_playing() and replay.replay_pending() and events == [true, false], "natural end schedules replay")
+	replay.stop()
+	check(not replay.replay_pending(), "stop cancels replay")
+	replay.observe({"state": 0, "reason": 1, "started_sequence": 2, "ended_sequence": 2, "error": ""})
+	check(events == [true, false, true, false] and replay.replay_pending(), "short clip start/end between polls is preserved")
+	replay.stop()
+	replay.observe({"state": 4, "reason": 3, "started_sequence": 2, "ended_sequence": 3, "error": "device lost"})
+	check(not replay.replay_pending() and not replay.is_playing() and replay.last_error == "device lost", "device failure never replays or reports Playing")
 	var world := scene.get_world_3d().direct_space_state
 	for z in [-6.0,14.0,21.0,28.0]:
 		var query := PhysicsRayQueryParameters3D.create(Vector3(-11.5,1,z),Vector3(-11.5,-1,z))
@@ -148,12 +175,78 @@ func run() -> void:
 			seen[m.messages[0].address] = m.messages[0].args
 	check(seen.has("/adm/obj/4/xyz") and seen.has("/adm/obj/4/aed") and seen.has("/adm/obj/1/xyz"),"ADM xyz and aed emitted over UDP")
 	check(seen.get("/adm/obj/1/xyz",[0,0,0]).size() == 3 and absf(seen["/adm/obj/1/xyz"][0]) <= 1.0,"ADM values are unit-sphere limited")
+	if ClassDB.class_exists("SFNativePlayer"):
+		manager.monitor_port = 18302
+		manager.stop_networking()
+		check(manager.start_networking() == OK, "restart with monitor port")
+		var monitor := PacketPeerUDP.new()
+		check(monitor.bind(18302, "127.0.0.1") == OK, "monitor capture socket")
+		var mono := scene.get_node("Mono") as SpatialFabricPlaybackCue
+		mono.device_id = "godot-test-nonexistent-device"
+		check(mono.prepare_source() == OK and mono.is_prepared() and mono.refresh_devices() == OK, "explicit prepare and device refresh")
+		check(not mono.is_playing(), "preparation never plays")
+		client.set_dest_address("127.0.0.1", 18301)
+		client.put_packet(SpatialFabricOsc.encode("/godot/playback/mono/play", []))
+		client.put_packet(SpatialFabricOsc.encode("/godot/playback/mono/loop", [1]))
+		for i in 80:
+			await create_timer(0.025).timeout
+			if not mono.last_error.is_empty():
+				break
+		await create_timer(0.1).timeout
+		var states := 0
+		while monitor.get_available_packet_count() > 0:
+			states += 1
+			monitor.get_packet()
+		check(mono.loop and not mono.is_playing() and states == 0 and not mono.last_error.is_empty(), "OSC play on an invalid device: loop applied, no false Playing or state")
+		monitor.close()
 	manager.stop_networking()
 	check(not manager.is_listening() and probe.open([18300],"127.0.0.1")==OK,"stop releases sockets")
 	probe.close()
 	adm.close()
 	client.close()
-	var report := {"status":"passed" if failed.is_empty() else "failed", "passed":passed, "failed":failed, "scope":"Godot port: codec, explicit loopback UDP, scene query and ADM verified; no native audio or hardware certification."}
+	var require_native := OS.get_cmdline_user_args().has("--require-native")
+	if not ClassDB.class_exists("SFNativeBuffer"):
+		check(not require_native, "native extension loaded")
+	else:
+		check(ClassDB.instantiate("SFNativePlayer").abi_version() == 1, "native ABI v1")
+		var pcm := PackedFloat32Array()
+		for i in 480:
+			pcm.append(sin(float(i) * 0.2) * 0.5 + 0.1)
+		var native: Object = ClassDB.instantiate("SFNativeBuffer")
+		check(native.create(pcm, 1, 48000) and native.is_valid(), "native immutable PCM copy")
+		pcm.fill(0.0) # prove the native buffer does not alias the caller's array
+		var routed: Dictionary = native.render(960, 2, 48000, 2, false, 0.0)
+		var rs: PackedFloat32Array = routed.samples
+		var left_silent := true
+		var right_audible := false
+		for f in 480:
+			left_silent = left_silent and rs[f * 2] == 0.0
+			right_audible = right_audible or absf(rs[f * 2 + 1]) > 0.05
+		check(left_silent and right_audible, "native channel 2 routes source to one physical output")
+		var tail_zero := true
+		for f in range(500, 960):
+			tail_zero = tail_zero and rs[f * 2] == 0.0 and rs[f * 2 + 1] == 0.0
+		check(tail_zero, "native EOF is zero tailed")
+		var bad := PackedFloat32Array([0.0, NAN])
+		var rejected: Object = ClassDB.instantiate("SFNativeBuffer")
+		check(not rejected.create(bad, 1, 48000) and not rejected.get_error().is_empty(), "native rejects non-finite PCM")
+		check(not ClassDB.instantiate("SFNativeBuffer").create(PackedFloat32Array(), 1, 48000), "native rejects empty PCM")
+		var inventory: Dictionary = ClassDB.instantiate("SFNativePlayer").devices_json()
+		check(inventory.ok and JSON.parse_string(inventory.json) != null, "explicit device inventory parses")
+		var native_player: Object = ClassDB.instantiate("SFNativePlayer")
+		check(native_player.status().state == 0, "new native player stopped")
+		native_player.start(native, "godot-test-nonexistent-device", 0, false, 20, false)
+		var final_state := -1
+		for tick in 120:
+			await create_timer(0.025).timeout
+			final_state = native_player.status().state
+			if final_state == 4 or final_state == 2:
+				break
+		var final_status: Dictionary = native_player.status()
+		check(final_state == 4 and final_status.started_sequence == 0 and not final_status.error.is_empty(), "invalid device fails without false Playing")
+		native_player.stop()
+		check(native_player.status().state != 2, "stop after failure stays not playing")
+	var report := {"status":"passed" if failed.is_empty() else "failed", "passed":passed, "failed":failed, "scope":"Godot port: codec, loopback UDP, scene query, ADM and silent native checks. No physical audio certification."}
 	var args := OS.get_cmdline_user_args()
 	if args.size()>0:
 		var file := FileAccess.open(args[0],FileAccess.WRITE)

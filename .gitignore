@@ -13,3 +13,12 @@ export_credentials.cfg
 *.dylib
 *.so
 *.pdb
+.deps/
+addons/spatial_fabric/bin/
+*.obj
+*.obj.import
+*.lib
+*.exp
+*.ilk
+.sconsign.dblite
+build-native.log

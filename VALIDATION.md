@@ -1,46 +1,53 @@
-# Local wireframe validation
+# Local validation
 
-Status: **starter scaffold only**, not a complete Godot port. No GitHub Actions.
-No GitHub remote, release, export templates or native binaries are configured.
+Status: **early development, not feature parity.** No GitHub Actions, remote, release or
+export templates. Validation is local and silent: no physical audio has been played.
 
-## Measured
+## Measured (Windows x64, official Godot 4.7.2.stable.ed1daf0bf)
 
-Windows x64, official Godot **4.7.2.stable.ed1daf0bf**, portable test executable:
+- **9 Python checks**: layout, fixture/native-source/audio SHA-256 provenance, no sockets
+  outside the explicit transport, no `AudioStreamPlayer`/mixer use, no Actions files.
+- Real headless editor import with the plugin and the GDExtension loaded: clean, with
+  the gate failing on any Godot `ERROR`, `WARNING`, parse or Unicode message.
+- **86 Godot checks with the native library; 71 without it** (native checks are then
+  skipped, never faked). `--require-native` makes a missing library a failure. Covered:
+  - Coordinates, ADM XYZ/AED, stage validity, nine-record inventory, paging bounds and
+    duplicate-key refusal without discovery repair.
+  - OSC fixture-exact decode and byte-exact re-encode, malformed rejection, bundles,
+    UTF-8 and bounds.
+  - Real loopback UDP: exclusive bind with transactional rollback, paged scene query
+    reassembly, invalid request ignored, ADM XYZ/AED packets, socket release.
+  - WAV decoder on the three original cues (1/2/1 channels, 48 kHz) and bad input.
+  - AudioLoom play/loop trigger semantics, including first-float-before-first-int.
+  - Cue lifecycle from synthetic native statuses: observed start, natural-end replay,
+    stop cancels, short clips between polls kept, device failure never replays.
+  - Native: ABI v1, immutable PCM copy, channel routing, zero-tailed EOF, non-finite and
+    empty PCM rejection, explicit non-playing device inventory, an **invalid device that
+    fails without ever reporting Playing**, and OSC play to it with no `/state` emitted.
+  - Door capsules/crossings and wall blocking with real physics; room-to-cue mapping.
+- Real OpenGL Compatibility renders of hall, spatial room and a playback room were
+  reviewed (RTX 4070 Ti SUPER): geometry, per-room signs and live HUD.
+- Build: `Tools/build_native.py` produced debug and release DLLs from a clean godot-cpp
+  clone (`godot-4.5-stable`); the extension loads in Godot 4.7.2.
 
-- **6 Python source/provenance/layout checks passed**.
-- Vendored Interop fixture bytes and SHA-256 provenance match the shared source.
-- Real headless Godot editor import with the example's plugin enabled: passed,
-  no script/parse errors. Dummy audio driver used for validation.
-- **57 real Godot checks passed** (the original 31 plus fixture-exact OSC decode/re-encode/rejection, bundles, bounds, exclusive bind with rollback, real UDP paged scene query, ignored invalid requests, ADM XYZ/AED over UDP, socket release). Original 31:: canonical -Z/X/Y and ADM mapping, sphere limiting,
-  rotated/invalid stages, nine-record local inventory, paging/bounds, duplicate-key
-  refusal without mutation, unavailable native/network paths, four floor probes,
-  four clear door capsules, actual visitor crossings through all four doors and
-  blocking at a solid wall.
-- A fresh source-only consumer copy (no `.godot` cache, `.git` or sibling repository)
-  independently passed **31 Godot + 6 Python checks** after a clean import.
-- **Two actual OpenGL Compatibility renders captured and reviewed** (hall / spatial
-  room), NVIDIA RTX 4070 Ti SUPER. Geometry, original visitor camera, markers, labels
-  and honest wireframe HUD rendered. No source audio or OSC was sent.
-
-Evidence on the development machine: `%TEMP%/SpatialFabricGodot-srlq0ntq/`:
-`Final/{import.log,tests.log,tests.json}`, `Screenshots/{hall,spatial}.png`, `render.log`.
-Fresh-consumer evidence: `%TEMP%/SpatialFabricGodotConsumer-skavr0t7/Evidence/`.
-The temporary portable Godot executable is not part of this repository.
-
-Reproduce:
+Evidence directory (development machine): `%TEMP%/SpatialFabricGodot-srlq0ntq/`
+(`Cue5/`, `NoNative/`, `Screens4/`). The portable Godot executable is not in the repo.
 
 ```sh
 python -m unittest discover -s Tools -p 'test_*.py'
-python Tools/validate_godot.py --godot '/path/to/godot'
-godot --audio-driver Dummy --path . --script res://Tests/Godot/render_wireframe.gd -- /absolute/external/screenshots
+python Tools/build_native.py
+python Tools/validate_godot.py --godot /path/to/godot --require-native
+godot --audio-driver Dummy --path . --script res://Tests/Godot/render_wireframe.gd -- /absolute/screens
 ```
 
 ## Not measured / not implemented
 
-No Custom emitter, multi-destination routing, monitor state, native PCM/device
-backend, source preparation, observed native lifecycle, replay, CSV, runtime-clone
-identity or full authoring workflow exists yet. Audio fails closed. Network is explicit-start; only loopback is tested.
-The editor dock's manual Inspect click has not had interactive UI automation; import
-and the underlying local API are tested. No standalone exports, older Godot versions,
-Mac/Linux Godot runtime or physical audio are validated. Other repositories' results
-are not Godot evidence. See `Docs/ROADMAP.md` before advertising support or parity.
+- **Physical output of any kind**: channel isolation, fidelity, latency, exclusive mode,
+  hot-unplug, audible loop/EOF/replay. Needs a human on real hardware.
+- macOS/Linux Godot runtime, Core Audio, exports, other Godot versions.
+- Custom protocol output, multiple keyed destinations, per-binding overrides, listener
+  following, runtime-clone identity, CSV workflows, authoring panels/radar/Undo,
+  query rate limiting. The editor dock has had import-level but no interactive UI test.
+- The keyboard controls (E/Q/L/R/X/N) are implemented but exercised only through their
+  underlying APIs and a render, not by synthetic key events.
+- Other repositories' results are not Godot evidence.

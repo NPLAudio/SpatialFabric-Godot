@@ -1,0 +1,10 @@
+[configuration]
+entry_symbol = "spatialfabric_native_init"
+compatibility_minimum = "4.5"
+reloadable = false
+
+[libraries]
+windows.x86_64.debug = "res://addons/spatial_fabric/bin/spatialfabric_native.windows.template_debug.x86_64.dll"
+windows.x86_64.release = "res://addons/spatial_fabric/bin/spatialfabric_native.windows.template_release.x86_64.dll"
+macos.debug = "res://addons/spatial_fabric/bin/spatialfabric_native.macos.template_debug.universal.dylib"
+macos.release = "res://addons/spatial_fabric/bin/spatialfabric_native.macos.template_release.universal.dylib"

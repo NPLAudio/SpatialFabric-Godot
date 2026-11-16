@@ -18,9 +18,12 @@ func run() -> void:
 	camera.current = true
 	var views := [
 		["hall",Vector3(-12.0,1.65,-5.0),Vector3(-10.0,1.5,22.0)],
-		["spatial",Vector3(-6.0,1.65,5.0),Vector3(1.0,2.5,-2.0)]
+		["spatial",Vector3(-6.0,1.65,5.0),Vector3(1.0,2.5,-2.0)],
+		["mono",Vector3(-8.0,1.65,14.0),Vector3(-1.0,1.8,14.0)]
 	]
 	for view in views:
+		if view[0] == "mono":
+			scene.get_node("Visitor").position = Vector3(-5, 0.05, 14)
 		camera.global_position = view[1]
 		camera.look_at(view[2])
 		await process_frame
@@ -31,5 +34,5 @@ func run() -> void:
 			push_error("Screenshot capture failed")
 			quit(1)
 			return
-	print("Captured two real Godot wireframe views.")
+	print("Captured three real Godot views.")
 	quit(0)
