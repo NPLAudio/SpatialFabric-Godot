@@ -7,6 +7,7 @@ extends Node3D
 @export var stage_path: NodePath
 @export var object_paths: Array[NodePath] = []
 @export var cue_paths: Array[NodePath] = []
+@export var live_paths: Array[NodePath] = []
 @export_range(1024, 65535) var spatial_input_port: int = 8300
 @export_range(1024, 65535) var playback_input_port: int = 9200
 @export_range(1024, 65535) var monitor_port: int = 9201
@@ -46,6 +47,8 @@ func start_networking() -> Error:
 	last_error = ""
 	for cue in _cues():
 		cue.state_changed.connect(_on_cue_state.bind(cue))
+	for live in _lives():
+		live.state_changed.connect(_on_live_state.bind(live))
 	set_process(true)
 	return OK
 
@@ -57,12 +60,36 @@ func _cues() -> Array[SpatialFabricPlaybackCue]:
 			out.append(cue)
 	return out
 
+func _lives() -> Array[SpatialFabricLiveInputCue]:
+	var out: Array[SpatialFabricLiveInputCue] = []
+	for path in live_paths:
+		var live := get_node_or_null(path) as SpatialFabricLiveInputCue
+		if live != null:
+			out.append(live)
+	return out
+
+func _on_live_state(is_live: bool, live: SpatialFabricLiveInputCue) -> void:
+	if is_listening():
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(live.osc_base + "/state", [1.0 if is_live else 0.0]))
+
 ## Observed worker lifecycle only (1/0), never an acknowledgement of the request.
 func _on_cue_state(playing: bool, cue: SpatialFabricPlaybackCue) -> void:
 	if is_listening():
 		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if playing else 0.0]))
 
 func _dispatch_playback(message: Dictionary) -> void:
+	for live in _lives():
+		var live_tail: String = message.address.trim_prefix(live.osc_base + "/") if message.address.begins_with(live.osc_base + "/") else ""
+		match live_tail:
+			"play":
+				if SpatialFabricPlaybackControl.should_play(message.args):
+					live.try_start()
+			"stop":
+				live.stop()
+			"gain":
+				var level: Variant = SpatialFabricPlaybackControl.gain_value(message.args)
+				if level != null:
+					live.set_gain(level)
 	for cue in _cues():
 		var tail: String = message.address.trim_prefix(cue.osc_base + "/") if message.address.begins_with(cue.osc_base + "/") else ""
 		match tail:
@@ -81,6 +108,10 @@ func stop_networking() -> void:
 		var bound := _on_cue_state.bind(cue)
 		if cue.state_changed.is_connected(bound):
 			cue.state_changed.disconnect(bound)
+	for live in _lives():
+		var live_bound := _on_live_state.bind(live)
+		if live.state_changed.is_connected(live_bound):
+			live.state_changed.disconnect(live_bound)
 	if transport != null:
 		transport.close()
 	transport = null
@@ -180,6 +211,12 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			return _error("Unresolved/out-of-scope playback cue.")
 		nodes.append(cue)
 		kinds.append("playback")
+	for path in live_paths:
+		var live_node := get_node_or_null(path) as SpatialFabricLiveInputCue
+		if live_node == null or not scope.is_ancestor_of(live_node):
+			return _error("Unresolved/out-of-scope live input.")
+		nodes.append(live_node)
+		kinds.append("live_input")
 	var keys: Dictionary = {}
 	var rows: Array[Dictionary] = []
 	for i in nodes.size():
@@ -212,6 +249,18 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			row["prepared"] = item.is_prepared()
 			row["loop"] = item.loop
 			row["backend_status"] = "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"
+		elif item is SpatialFabricLiveInputCue:
+			row["osc_base"] = item.osc_base
+			row["controls"] = {"play": item.osc_base + "/play", "stop": item.osc_base + "/stop", "gain": item.osc_base + "/gain"}
+			row["state_address"] = item.osc_base + "/state"
+			row["input_device_id"] = item.input_device_id
+			row["configured_device_id"] = item.output_device_id
+			row["input_channel"] = item.input_channel
+			row["output_channel"] = item.output_channel
+			row["gain"] = item.gain
+			row["playing"] = item.is_live()
+			row["input_peak"] = item.input_peak
+			row["backend_status"] = "available" if SpatialFabricLiveInputCue.native_available() else "unavailable"
 		rows.append(row)
 	var end: int = mini(offset + limit, rows.size())
 	var page_rows: Array[Dictionary] = rows.slice(mini(offset, rows.size()), end)

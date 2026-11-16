@@ -105,10 +105,67 @@ public:
     void stop() { if (player) sf_player_stop(player); }
 };
 
+
+// Live input -> output session. Explicit start only; polling reports the real worker state.
+class SFNativeLive : public RefCounted {
+    GDCLASS(SFNativeLive, RefCounted)
+    sf_live* live = nullptr;
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_static_method("SFNativeLive", D_METHOD("live_abi_version"), &SFNativeLive::live_abi_version);
+        ClassDB::bind_static_method("SFNativeLive", D_METHOD("input_devices_json"), &SFNativeLive::input_devices_json);
+        ClassDB::bind_method(D_METHOD("start", "input_device_id", "input_channel", "output_device_id", "output_channel", "exclusive", "buffer_ms", "gain"), &SFNativeLive::start);
+        ClassDB::bind_method(D_METHOD("set_gain", "gain"), &SFNativeLive::set_gain);
+        ClassDB::bind_method(D_METHOD("status"), &SFNativeLive::status);
+        ClassDB::bind_method(D_METHOD("stop"), &SFNativeLive::stop);
+    }
+public:
+    SFNativeLive() { live = sf_live_create(); }
+    ~SFNativeLive() { if (live) { sf_live_stop(live); sf_live_destroy(live); } }
+    static int64_t live_abi_version() { return sf_live_abi_version(); }
+    // Explicit capture-endpoint inventory; opens no stream and requests no microphone access.
+    static Dictionary input_devices_json() {
+        Dictionary result;
+        char error[512] = {0};
+        int32_t need = sf_input_devices_json(nullptr, 0, error, sizeof(error));
+        if (need <= 0) { result["ok"] = false; result["error"] = String::utf8(error); return result; }
+        std::vector<char> text((size_t)need + 1, 0);
+        int32_t got = sf_input_devices_json(text.data(), need, error, sizeof(error));
+        result["ok"] = got > 0;
+        result["json"] = got > 0 ? String::utf8(text.data()) : String();
+        result["error"] = got > 0 ? String() : String::utf8(error);
+        return result;
+    }
+    // A request, not an acknowledgement: poll status().
+    int64_t start(const String& input_id, int32_t input_channel, const String& output_id, int32_t output_channel, bool exclusive, int32_t buffer_ms, float gain) {
+        if (!live) return 0;
+        CharString in = input_id.utf8();
+        CharString out = output_id.utf8();
+        return sf_live_start(live, in.get_data(), input_channel, out.get_data(), output_channel, exclusive ? 1 : 0, buffer_ms, gain);
+    }
+    void set_gain(float gain) { if (live) sf_live_gain(live, gain); }
+    Dictionary status() const {
+        Dictionary result;
+        sf_live_status s = {};
+        if (live) sf_live_status_get(live, &s);
+        result["state"] = s.state; result["reason"] = s.reason;
+        result["input_channels"] = s.input_channels; result["input_rate"] = s.input_rate;
+        result["output_channels"] = s.output_channels; result["output_rate"] = s.output_rate;
+        result["exclusive_active"] = s.exclusive_active != 0; result["buffer_frames"] = s.buffer_frames; result["latency_frames"] = s.latency_frames;
+        result["started_sequence"] = (int64_t)s.started_sequence; result["ended_sequence"] = (int64_t)s.ended_sequence;
+        result["captured_frames"] = (int64_t)s.captured_frames; result["rendered_frames"] = (int64_t)s.rendered_frames;
+        result["underruns"] = (int64_t)s.underruns; result["overruns"] = (int64_t)s.overruns;
+        result["input_peak"] = s.input_peak; result["error"] = String::utf8(s.error_utf8);
+        return result;
+    }
+    void stop() { if (live) sf_live_stop(live); }
+};
+
 void initialize_spatialfabric_native(ModuleInitializationLevel level) {
     if (level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
     GDREGISTER_CLASS(SFNativeBuffer);
     GDREGISTER_CLASS(SFNativePlayer);
+    GDREGISTER_CLASS(SFNativeLive);
 }
 void uninitialize_spatialfabric_native(ModuleInitializationLevel) {}
 

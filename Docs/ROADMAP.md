@@ -12,6 +12,9 @@
   play/stop/loop semantics and real E/Q/L/R/X/N example controls.
 - Vendored shared schemas/fixtures with SHA-256 provenance and local tests.
 
+- Live input: `SpatialFabricLiveInputCue` (capture device/channel to output device/channel), OSC
+  play/stop/gain/state, discovery row, example **I** control.
+
 ## Not implemented
 1. Multiple keyed output destinations and per-binding output overrides.
 2. Query rate limiting/paced multi-page replies beyond the current bounded poll budget.

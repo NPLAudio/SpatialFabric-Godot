@@ -7,7 +7,7 @@ class ScaffoldTests(unittest.TestCase):
         for name,sha in p['sha256'].items():self.assertEqual(hashlib.sha256((base/Path(name).name).read_bytes()).hexdigest(),sha)
     def test_scene_keys_are_explicit_and_unique(self):
         scene=(ROOT/'examples/four_rooms/room_showcase.tscn').read_text();keys=re.findall(r'persistent_key = "([^"]+)"',scene)
-        self.assertEqual(len(keys),9);self.assertEqual(len(set(keys)),9)
+        self.assertEqual(len(keys),10);self.assertEqual(len(set(keys)),10)
     def test_sockets_only_in_explicit_transport_and_no_audio_fallback(self):
         for path in (ROOT/'addons').rglob('*.gd'):
             text=path.read_text();self.assertNotIn('AudioStreamPlayer.new(',text);self.assertNotIn('UDPServer.new(',text)

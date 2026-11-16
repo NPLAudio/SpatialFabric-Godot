@@ -46,6 +46,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_X:
 			for cue_node in manager._cues():
 				cue_node.stop()
+		KEY_I: # explicit: opens the default microphone/line input and plays it on the default output
+			var live := get_node_or_null("Live") as SpatialFabricLiveInputCue
+			if live != null:
+				if live.is_live():
+					live.stop()
+				else:
+					live.try_start()
 		KEY_N:
 			if manager.is_listening():
 				manager.stop_networking()
@@ -144,6 +151,11 @@ func _hud_text() -> String:
 		line = "%s  prepared:%s playing:%s loop:%s replay:%s\nE play • Q stop • L loop • R auto-replay" % [cue.name, cue.is_prepared(), cue.is_playing(), cue.loop, cue.auto_replay]
 		if not cue.last_error.is_empty():
 			line += "\nlast: " + cue.last_error
+	var live := get_node_or_null("Live") as SpatialFabricLiveInputCue
+	if live != null:
+		line += "\nLive input (I): %s  peak %.2f  latency %.0f ms  xruns %d/%d — headphones or low gain: mic to speakers feeds back" % ["LIVE" if live.is_live() else "off", live.input_peak, live.latency_ms, live.underruns, live.overruns]
+		if not live.last_error.is_empty():
+			line += "\nlive: " + live.last_error
 	var network := "LISTENING" if manager.is_listening() else "off"
 	var native := "loaded" if SpatialFabricPlaybackCue.native_available() else "NOT loaded"
 	return "SPATIALFABRIC GODOT\nClick capture • WASD • Shift • Space • Esc release • X stop all • N network (%s)\nNative audio: %s. Nothing starts automatically; E uses the default output device.\n%s" % [network, native, line]

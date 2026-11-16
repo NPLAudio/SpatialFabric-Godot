@@ -5,6 +5,8 @@
 
 - `SFNativeBuffer`: copies finite interleaved float PCM (<=64M samples) into an
   immutable native allocation; offline `render()` for tests, never opens a device.
+- `SFNativeLive`: explicit `input_devices_json()`, `start()` request (input device/channel to
+  output device/channel, gain), observed `status()` (incl. peak, latency, xruns), `set_gain()`, `stop()`.
 - `SFNativePlayer`: explicit `devices_json()` inventory, `start()` request, observed
   `status()` (state, reason, start/end sequences), `set_loop()`, `stop()`.
 

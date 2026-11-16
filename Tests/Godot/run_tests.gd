@@ -63,9 +63,9 @@ func run() -> void:
 	await physics_frame
 	var manager := scene.get_node("Manager") as SpatialFabricManager
 	var page := manager.get_scene_page()
-	check(not page.has("error") and page.total==9,"nine local records")
+	check(not page.has("error") and page.total==10,"ten local records")
 	check(page.playback_network.listening==false and not manager.is_listening(),"no startup listener")
-	check(manager.get_scene_page(0,4).returned==4 and manager.get_scene_page(4,4).next_offset==8 and manager.get_scene_page(8,4).returned==1,"bounded pagination")
+	check(manager.get_scene_page(0,4).returned==4 and manager.get_scene_page(4,4).next_offset==8 and manager.get_scene_page(8,4).returned==2,"bounded pagination")
 	check(manager.get_scene_page(-1,4).has("error") and manager.get_scene_page(0,65).has("error"),"invalid page bounds rejected")
 	var a := scene.get_node("Object1") as SpatialFabricObject
 	var b := scene.get_node("Object2") as SpatialFabricObject
@@ -104,6 +104,36 @@ func run() -> void:
 	replay.stop()
 	replay.observe({"state": 4, "reason": 3, "started_sequence": 2, "ended_sequence": 3, "error": "device lost"})
 	check(not replay.replay_pending() and not replay.is_playing() and replay.last_error == "device lost", "device failure never replays or reports Playing")
+	var live_cue := scene.get_node("Live") as SpatialFabricLiveInputCue
+	var live_events: Array = []
+	live_cue.state_changed.connect(func(on: bool): live_events.append(on))
+	check(not live_cue.is_live(), "live input is off at startup")
+	live_cue.observe({"state": 2, "reason": 0, "started_sequence": 1, "ended_sequence": 0, "error": "", "input_peak": 0.5, "input_rate": 48000, "latency_frames": 960})
+	check(live_cue.is_live() and live_events == [true] and live_cue.input_peak == 0.5 and absf(live_cue.latency_ms - 20.0) < 0.01, "observed start becomes live with peak and latency")
+	live_cue.observe({"state": 0, "reason": 2, "started_sequence": 1, "ended_sequence": 1, "error": ""})
+	check(not live_cue.is_live() and live_events == [true, false], "observed end clears live")
+	live_cue.observe({"state": 4, "reason": 3, "started_sequence": 1, "ended_sequence": 1, "error": "input lost"})
+	check(not live_cue.is_live() and live_cue.last_error == "input lost" and live_events == [true, false], "device failure never reports live")
+	check(not live_cue.set_gain(5.0) and not live_cue.set_gain(NAN) and not live_cue.set_gain(-0.1) and live_cue.gain == 1.0 and live_cue.set_gain(0.5) and live_cue.gain == 0.5, "live gain bounded")
+	check(SpatialFabricPlaybackControl.gain_value([0.25]) == 0.25 and SpatialFabricPlaybackControl.gain_value([2]) == 2.0 and SpatialFabricPlaybackControl.gain_value([4.1]) == null and SpatialFabricPlaybackControl.gain_value([]) == null and SpatialFabricPlaybackControl.gain_value(["x"]) == null, "OSC live gain semantics")
+	var live_row: Dictionary = manager.get_scene_page(8, 4).objects.filter(func(o): return o.kind == "live_input")[0]
+	check(live_row.controls.gain == "/godot/live/input/gain" and live_row.playing == false and not manager.get_scene_page(8, 4).has("error"), "discovery reports live input read-only")
+	if ClassDB.class_exists("SFNativeLive"):
+		var input_inventory: Dictionary = ClassDB.instantiate("SFNativeLive").input_devices_json()
+		check(input_inventory.ok and JSON.parse_string(input_inventory.json) != null and SpatialFabricLiveInputCue.native_available(), "explicit input inventory parses without opening a stream")
+		check(live_cue.refresh_input_devices() == OK, "cue input refresh is explicit")
+		live_cue.input_device_id = "godot-test-invalid-input"
+		live_cue.output_device_id = "godot-test-invalid-output"
+		check(live_cue.try_start(), "live start is a request")
+		var live_waited := 0
+		while live_waited < 120 and live_cue.last_error.is_empty():
+			await create_timer(0.025).timeout
+			live_waited += 1
+		check(live_cue.worker_state == 4 and not live_cue.is_live() and live_cue.last_error.contains("no default fallback") and live_events == [true, false], "invalid input device fails without a false live state")
+		live_cue.stop()
+		check(not live_cue.is_live(), "live stop after failure")
+	else:
+		check(not live_cue.try_start() and not live_cue.is_live() and not live_cue.last_error.is_empty(), "live input fails closed without the native library")
 	var world := scene.get_world_3d().direct_space_state
 	for z in [-6.0,14.0,21.0,28.0]:
 		var query := PhysicsRayQueryParameters3D.create(Vector3(-11.5,1,z),Vector3(-11.5,-1,z))

@@ -11,6 +11,7 @@ FILES = {
     'include/spatialfabric_audio.h': 'spatialfabric_audio.h',
     'src/audio.cpp': 'src/audio.cpp',
     'src/pcm.h': 'src/pcm.h',
+    'src/live.h': 'src/live.h',
     'src/core_audio.inc': 'src/core_audio.inc',
 }
 CRLF = bytes([13, 10])

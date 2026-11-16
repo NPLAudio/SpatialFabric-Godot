@@ -29,7 +29,8 @@ example still runs and cues report that native audio is not loaded.
 
 Click to capture the mouse; **WASD** walk, **Shift** sprint, **Space** jump, **Esc** release.
 In a playback room: **E** prepare (first use) and request playback, **Q** stop, **L** loop,
-**R** auto-replay. **X** stops all cues. **N** starts/stops OSC networking. The HUD shows
+**R** auto-replay. **X** stops all cues. **I** starts/stops **live input** (default microphone/line
+in to the default output; see below). **N** starts/stops OSC networking. The HUD shows
 the observed state; "playing" means the native worker actually started, not that a request
 was made. **E uses the system default output device and makes sound.** Rooms: spatial
 motion (four objects, three animated), warm percussion (output 1), stereo groove
@@ -39,6 +40,21 @@ procedural WAVs as the Unreal/Unity examples. Visual walls do not spatialize or 
 The editor dock is enabled in the example (Project Settings → Plugins → SpatialFabric);
 **Inspect edited scene** reads the manager only when clicked. For another project copy
 `addons/spatial_fabric/`; the example and tests are not runtime dependencies.
+
+## Live input (microphone / line in)
+
+`SpatialFabricLiveInputCue` routes a **selected capture device and channel** to a **selected output
+device and channel** through the same native path as `SpatialFabricPlaybackCue`; there is no
+`AudioStreamMicrophone`/AudioServer use. Selection mirrors output: explicit `refresh_input_devices()`,
+exact configured IDs with **no default fallback**, input channel `0` = all / `1..N` = one input,
+output channel `0` = corresponding / `1..N` = one output, exclusive mode for the output only.
+Nothing opens a microphone until an explicit `try_start()` (the example's **I** key, or OSC
+`/godot/live/input/play`, which may trigger an OS permission prompt). Also `/stop`, `/gain`
+(float 0..4), observed `/state`, and a read-only `live_input` discovery record.
+`is_live()` means the worker really started. Latency is a bounded ring (about twice `buffer_ms`) with a
+drift servo; underruns/overruns and an input peak are reported. **Mic to nearby speakers feeds back:**
+use headphones or low gain. macOS exports need a microphone usage description; macOS capture is unbuilt.
+**No test has ever opened a real microphone; physical latency/quality is unverified.**
 
 ## Architecture and contracts
 

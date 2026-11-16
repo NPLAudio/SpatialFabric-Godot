@@ -29,3 +29,11 @@ static func loop_value(args: Array) -> Variant:
 	if value == null:
 		return null
 	return value > 0.5 if typeof(value) == TYPE_FLOAT else value >= 1
+
+## Live-input gain: first float anywhere, else first int; finite 0..4. Anything else is ignored (null).
+static func gain_value(args: Array) -> Variant:
+	var value: Variant = _numeric(args)
+	if value == null:
+		return null
+	var level := float(value)
+	return level if level >= 0.0 and level <= 4.0 else null

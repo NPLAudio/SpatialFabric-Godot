@@ -9,7 +9,7 @@ export templates. Validation is local and silent: no physical audio has been pla
   outside the explicit transport, no `AudioStreamPlayer`/mixer use, no Actions files.
 - Real headless editor import with the plugin and the GDExtension loaded: clean, with
   the gate failing on any Godot `ERROR`, `WARNING`, parse or Unicode message.
-- **86 Godot checks with the native library; 71 without it** (native checks are then
+- **98 Godot checks with the native library** (earlier gate: 86/71 before live input) (native checks are then
   skipped, never faked). `--require-native` makes a missing library a failure. Covered:
   - Coordinates, ADM XYZ/AED, stage validity, nine-record inventory, paging bounds and
     duplicate-key refusal without discovery repair.
@@ -40,9 +40,17 @@ python Tools/validate_godot.py --godot /path/to/godot --require-native
 godot --audio-driver Dummy --path . --script res://Tests/Godot/render_wireframe.gd -- /absolute/screens
 ```
 
+## Live input (silent)
+
+Included in the 98: observed live start/end/failure from synthetic statuses, bounded gain,
+OSC gain semantics, read-only discovery row, explicit input inventory, and a live start on
+intentionally invalid devices that fails (`no default fallback`) with no live state. The
+vendored native core's 48 silent checks cover the bridge (mapping, resampling, xruns, gain).
+**No real microphone or line input was opened.**
+
 ## Not measured / not implemented
 
-- **Physical output of any kind**: channel isolation, fidelity, latency, exclusive mode,
+- **Physical input or output of any kind** (real capture, latency, drift, feedback handling): channel isolation, fidelity, latency, exclusive mode,
   hot-unplug, audible loop/EOF/replay. Needs a human on real hardware.
 - macOS/Linux Godot runtime, Core Audio, exports, other Godot versions.
 - Custom protocol output, multiple keyed destinations, per-binding overrides, listener

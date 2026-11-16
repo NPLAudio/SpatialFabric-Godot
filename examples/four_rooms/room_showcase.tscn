@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://examples/four_rooms/room_showcase.gd" id="1"]
 [ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_stage.gd" id="2"]
 [ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_manager.gd" id="3"]
 [ext_resource type="Script" path="res://addons/spatial_fabric/runtime/spatial_object.gd" id="4"]
 [ext_resource type="Script" path="res://addons/spatial_fabric/runtime/playback_cue.gd" id="5"]
+[ext_resource type="Script" path="res://addons/spatial_fabric/runtime/live_input_cue.gd" id="6"]
 
 [node name="RoomShowcase" type="Node3D"]
 script = ExtResource("1")
@@ -20,6 +21,7 @@ persistent_key = "godot-showcase-manager"
 stage_path = NodePath("../Stage")
 object_paths = Array[NodePath]([NodePath("../Object1"), NodePath("../Object2"), NodePath("../Object3"), NodePath("../Object4")])
 cue_paths = Array[NodePath]([NodePath("../Mono"), NodePath("../Stereo"), NodePath("../Replay")])
+live_paths = Array[NodePath]([NodePath("../Live")])
 
 [node name="Object1" type="Node3D" parent="."]
 position = Vector3(-3, 2, -3)
@@ -68,3 +70,8 @@ source_path = "res://examples/four_rooms/audio/SW_SF_ReplayCue.wav"
 auto_replay = true
 replay_delay_seconds = 2.5
 output_channel = 2
+
+[node name="Live" type="Node3D" parent="."]
+script = ExtResource("6")
+persistent_key = "godot-showcase-live"
+osc_base = "/godot/live/input"
