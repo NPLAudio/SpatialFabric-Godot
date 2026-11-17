@@ -249,6 +249,7 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			row["prepared"] = item.is_prepared()
 			row["loop"] = item.loop
 			row["backend_status"] = "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"
+			row["last_error"] = item.last_error
 		elif item is SpatialFabricLiveInputCue:
 			row["osc_base"] = item.osc_base
 			row["controls"] = {"play": item.osc_base + "/play", "stop": item.osc_base + "/stop", "gain": item.osc_base + "/gain"}
@@ -261,6 +262,7 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			row["playing"] = item.is_live()
 			row["input_peak"] = item.input_peak
 			row["backend_status"] = "available" if SpatialFabricLiveInputCue.native_available() else "unavailable"
+			row["last_error"] = item.last_error
 		rows.append(row)
 	var end: int = mini(offset + limit, rows.size())
 	var page_rows: Array[Dictionary] = rows.slice(mini(offset, rows.size()), end)
