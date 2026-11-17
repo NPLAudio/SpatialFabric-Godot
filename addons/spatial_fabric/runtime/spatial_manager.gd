@@ -1,7 +1,7 @@
 @tool
 class_name SpatialFabricManager
 extends Node3D
-## Nothing binds or sends until start_networking(). Playback/native audio remains unavailable.
+## Nothing binds or sends until start_networking(). Audio starts only on explicit requests.
 
 @export var persistent_key: String = ""
 @export var stage_path: NodePath
@@ -31,6 +31,8 @@ var _adm_clock := 0.0
 var _adm_refresh_clock := 0.0
 var _adm_last: Dictionary = {}
 var _adm_sent := 0
+var _pending_starts: Dictionary = {}
+var _wired_cues: Array[Node] = []
 
 func is_listening() -> bool:
 	return transport != null and transport.is_open()
@@ -49,10 +51,7 @@ func start_networking() -> Error:
 		return result
 	transport = candidate
 	last_error = ""
-	for cue in _cues():
-		cue.state_changed.connect(_on_cue_state.bind(cue))
-	for live in _lives():
-		live.state_changed.connect(_on_live_state.bind(live))
+	_sync_cue_signals()
 	set_process(true)
 	return OK
 
@@ -72,53 +71,104 @@ func _lives() -> Array[SpatialFabricLiveInputCue]:
 			out.append(live)
 	return out
 
+func _disconnect_cue(cue: Variant) -> void:
+	_pending_starts.erase(cue)
+	if not is_instance_valid(cue):
+		return
+	var bound := _on_live_state.bind(cue) if cue is SpatialFabricLiveInputCue else _on_cue_state.bind(cue)
+	if cue.state_changed.is_connected(bound):
+		cue.state_changed.disconnect(bound)
+	var failed_bound := _on_start_failed.bind(cue)
+	if cue.start_failed.is_connected(failed_bound):
+		cue.start_failed.disconnect(failed_bound)
+
+func _sync_cue_signals() -> void:
+	var current: Array[Node] = []
+	for cue in _cues() + _lives():
+		if not current.has(cue):
+			current.append(cue)
+	for cue in _wired_cues:
+		if not is_instance_valid(cue) or not current.has(cue):
+			_disconnect_cue(cue)
+	for cue in current:
+		if not _wired_cues.has(cue):
+			var bound := _on_live_state.bind(cue) if cue is SpatialFabricLiveInputCue else _on_cue_state.bind(cue)
+			cue.state_changed.connect(bound)
+			cue.start_failed.connect(_on_start_failed.bind(cue))
+	_wired_cues = current
+
 func _on_live_state(is_live: bool, live: SpatialFabricLiveInputCue) -> void:
+	if is_live:
+		_pending_starts.erase(live)
 	if is_listening():
 		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(live.osc_base + "/state", [1.0 if is_live else 0.0]))
 
 ## Observed worker lifecycle only (1/0), never an acknowledgement of the request.
 func _on_cue_state(playing: bool, cue: SpatialFabricPlaybackCue) -> void:
+	if playing:
+		_pending_starts.erase(cue)
 	if is_listening():
 		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if playing else 0.0]))
 
+func _observed(cue: Node) -> bool:
+	return cue.is_live() if cue is SpatialFabricLiveInputCue else cue.is_playing()
+
+func _ack(cue: Node, command: String, result: String, detail: String = "") -> void:
+	if is_listening():
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/ack", [SpatialFabricPlaybackControl.safe_command(command), result, 1 if _observed(cue) else 0, detail.left(256)]))
+
+func _on_start_failed(detail: String, cue: Node) -> void:
+	var count: int = _pending_starts.get(cue, 0)
+	_pending_starts.erase(cue)
+	for i in count:
+		_ack(cue, "play", "failed", detail)
+
 func _dispatch_playback(message: Dictionary) -> void:
+	_sync_cue_signals()
 	for live in _lives():
-		var live_tail: String = message.address.trim_prefix(live.osc_base + "/") if message.address.begins_with(live.osc_base + "/") else ""
-		match live_tail:
-			"play":
-				if SpatialFabricPlaybackControl.should_play(message.args):
-					live.try_start()
-			"stop":
-				live.stop()
-			"gain":
-				var level: Variant = SpatialFabricPlaybackControl.gain_value(message.args)
-				if level != null:
-					live.set_gain(level)
+		_dispatch_cue(live, "live", message)
 	for cue in _cues():
-		var tail: String = message.address.trim_prefix(cue.osc_base + "/") if message.address.begins_with(cue.osc_base + "/") else ""
-		match tail:
-			"play":
-				if SpatialFabricPlaybackControl.should_play(message.args):
-					cue.try_play()
-			"stop":
-				cue.stop()
-			"loop":
-				var value: Variant = SpatialFabricPlaybackControl.loop_value(message.args)
-				if value != null:
-					cue.set_loop(value)
+		_dispatch_cue(cue, "playback", message)
+
+func _dispatch_cue(cue: Node, kind: String, message: Dictionary) -> void:
+	var prefix: String = cue.osc_base + "/"
+	if not message.address.begins_with(prefix):
+		return # Unknown bases never receive feedback.
+	var command: String = message.address.trim_prefix(prefix)
+	cue.poll_status() # Ack/status fields are the latest observed worker snapshot.
+	var decision := SpatialFabricPlaybackControl.decision(kind, command, message.args)
+	if decision.result != "received":
+		_ack(cue, command, decision.result, decision.detail)
+		return
+	match command:
+		"play":
+			# A replacement cancels an unresolved request, rather than silently losing it.
+			_on_start_failed("start superseded by another play request", cue)
+			var accepted: bool = cue.try_start() if kind == "live" else cue.try_play()
+			if not accepted:
+				_ack(cue, command, "failed", cue.last_error)
+				return
+			_pending_starts[cue] = _pending_starts.get(cue, 0) + 1
+		"stop":
+			_pending_starts.erase(cue)
+			cue.stop()
+		"loop":
+			cue.set_loop(SpatialFabricPlaybackControl.loop_value(message.args))
+		"gain":
+			cue.set_gain(SpatialFabricPlaybackControl.gain_value(message.args))
+	_ack(cue, command, "received")
+	if command == "status" or command == "stop":
+		# Also answer idle stops, which do not produce a state_changed transition.
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if _observed(cue) else 0.0]))
 
 func stop_networking() -> void:
-	for cue in _cues():
-		var bound := _on_cue_state.bind(cue)
-		if cue.state_changed.is_connected(bound):
-			cue.state_changed.disconnect(bound)
-	for live in _lives():
-		var live_bound := _on_live_state.bind(live)
-		if live.state_changed.is_connected(live_bound):
-			live.state_changed.disconnect(live_bound)
+	for cue in _wired_cues:
+		_disconnect_cue(cue)
+	_wired_cues.clear()
 	if transport != null:
 		transport.close()
 	transport = null
+	_pending_starts.clear()
 	_adm_last.clear()
 
 func _exit_tree() -> void:
@@ -127,6 +177,7 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if not is_listening():
 		return
+	_sync_cue_signals()
 	for message in transport.poll():
 		if message.port == playback_input_port and message.address != SpatialFabricSceneQuery.QUERY:
 			_dispatch_playback(message)

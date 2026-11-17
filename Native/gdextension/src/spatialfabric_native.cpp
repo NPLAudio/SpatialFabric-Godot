@@ -85,7 +85,7 @@ public:
     }
     // A request, not an acknowledgement: poll status() for the real worker state.
     int64_t start(const Ref<SFNativeBuffer>& buffer, const String& device_id, int32_t output_channel, bool exclusive, int32_t buffer_ms, bool loop) {
-        if (!player || buffer.is_null() || !buffer->is_valid()) return 1; // ERR_UNAVAILABLE-like generic failure
+        if (!player || buffer.is_null() || !buffer->is_valid()) return 0; // Native start: 1 accepted, 0 refused.
         retained = buffer;
         CharString id = device_id.utf8();
         return sf_player_start(player, buffer->raw(), id.get_data(), output_channel, exclusive ? 1 : 0, buffer_ms, loop ? 1 : 0);

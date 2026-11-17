@@ -6,6 +6,7 @@ extends Node3D
 ## Playing is only what the native worker has OBSERVABLY started, never a request acknowledgement.
 
 signal state_changed(playing: bool)
+signal start_failed(detail: String)
 
 @export var persistent_key: String = ""
 @export var osc_base: String = "/godot/playback/cue"
@@ -26,6 +27,7 @@ var _playing := false
 var _replay_remaining := -1.0
 var _seen_start := 0
 var _seen_end := 0
+var _start_pending := false
 
 static func native_available() -> bool:
 	return ClassDB.class_exists("SFNativePlayer") and ClassDB.class_exists("SFNativeBuffer")
@@ -76,6 +78,7 @@ func refresh_devices() -> Error:
 
 ## Submits a start REQUEST. is_playing() becomes true only after the worker reports it started.
 func try_play() -> bool:
+	poll_status()
 	_replay_remaining = -1.0
 	# Play is itself an explicit action (E key, OSC /play, API call), so it prepares the configured source on demand.
 	# Preparation decodes and copies PCM only; it never opens a device. A changed source_path is re-prepared.
@@ -85,11 +88,16 @@ func try_play() -> bool:
 			return false
 		if prepare_source() != OK:
 			return false
+	# Consume the old worker before replacing it; sequence counters are cumulative.
+	stop()
 	if _player == null:
 		_player = ClassDB.instantiate("SFNativePlayer")
-	if _player.start(_buffer, device_id, output_channel, exclusive, buffer_ms, loop) != 0:
-		last_error = "Native player refused the start request."
+	if _player.start(_buffer, device_id, output_channel, exclusive, buffer_ms, loop) == 0:
+		observe(_player.status())
+		if last_error.is_empty():
+			last_error = "Native player refused the start request."
 		return false
+	_start_pending = true
 	last_error = ""
 	return true
 
@@ -101,14 +109,18 @@ func set_loop(enabled: bool) -> void:
 		_replay_remaining = -1.0
 
 func stop() -> void:
+	_start_pending = false
 	_replay_remaining = -1.0
 	if _player != null:
 		_player.stop()
 		observe(_player.status())
 
-func _process(delta: float) -> void:
+func poll_status() -> void:
 	if _player != null:
 		observe(_player.status())
+
+func _process(delta: float) -> void:
+	poll_status()
 	if _replay_remaining >= 0.0:
 		_replay_remaining -= delta
 		if _replay_remaining <= 0.0:
@@ -135,3 +147,9 @@ func observe(status: Dictionary) -> void:
 		state_changed.emit(false)
 		if ended and status.reason == 1 and auto_replay and not loop and status.state != 4:
 			_replay_remaining = replay_delay_seconds
+	if _start_pending:
+		if started:
+			_start_pending = false
+		elif status.state == 4:
+			_start_pending = false
+			start_failed.emit(last_error)

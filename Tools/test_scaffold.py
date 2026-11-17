@@ -19,7 +19,9 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn('examples/four_rooms/room_showcase.tscn',(ROOT/'project.godot').read_text());self.assertTrue((ROOT/'addons/spatial_fabric/plugin.cfg').is_file())
     def test_links_and_honest_status(self):
         text=(ROOT/'README.md').read_text()
-        for name in ['SpatialFabric','SpatialFabric-Unity','SpatialFabric-Interop','AudioLoom']:self.assertIn('https://github.com/NPLAudio/'+name,text)
+        links=re.findall(r'https://github\.com/NPLAudio/([^/)\s]+)\)',text)
+        for name in ['SpatialFabric','SpatialFabric-Unreal','SpatialFabric-Unity','SpatialFabric-Godot','AudioLoom']:self.assertIn(name,links)
+        self.assertNotIn('https://github.com/NPLAudio/SpatialFabric-Interop',text)
         self.assertIn('not implemented',text);self.assertIn('-Z/X/Y',text)
     def test_vendored_native_source_and_audio_provenance(self):
         base=ROOT/'Native/vendor/sf_audio';recorded=json.loads((base/'PROVENANCE.json').read_text());self.assertEqual(len(recorded['commit']),40)

@@ -7,6 +7,7 @@ screenshot from the exported build. Never plays audio. The output directory must
 """
 import argparse, hashlib, json, shutil, subprocess, zipfile
 from pathlib import Path
+from export_notices import bundle_notices, verify_engine_notices
 ROOT = Path(__file__).resolve().parents[1]
 NAME = 'SpatialFabricRoomShowcase'
 
@@ -24,6 +25,8 @@ def main():
     for stray in (ROOT / 'addons/spatial_fabric/bin').glob('~*'): stray.unlink()   # editor hot-reload copies must never ship
     version = json.loads(json.dumps({'v': next(l for l in (ROOT / 'addons/spatial_fabric/plugin.cfg').read_text().splitlines() if l.startswith('version=')).split('"')[1]}))['v']
     name = f'{NAME}-Godot-{version}-Windows-x64'; folder = out / name; (out / 'evidence').mkdir(parents=True); folder.mkdir()
+    # Fail closed before any Godot process; only allowlisted, pinned notices are bundled.
+    notices = bundle_notices(folder)
     def run(extra, log, timeout=600):
         with (out / 'evidence' / log).open('w', encoding='utf-8') as stream:
             return subprocess.run([str(args.godot), '--audio-driver', 'Dummy', '--path', str(ROOT)] + extra, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
@@ -41,6 +44,7 @@ def main():
     check = out / 'evidence/selfcheck.json'
     subprocess.run([str(runner), '--headless', '--audio-driver', 'Dummy', '--', '--sf-selfcheck', str(check)], check=True, timeout=120, capture_output=True)
     data = json.loads(check.read_text()); assert data['status'] == 'passed' and data['exported_template'], data
+    verify_engine_notices(data['engine'])
     # The exported build must really SEND ADM when OSC is switched on (the N key's code path): verify with a real receiver.
     import socket, threading, time
     sink = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); sink.bind(('127.0.0.1', 0)); sink.settimeout(0.05); adm_port = sink.getsockname()[1]
@@ -66,13 +70,14 @@ def main():
     (folder / 'RUNNING.txt').write_text('SpatialFabric Godot four-room example (Windows x64, release export, unsigned).\n\nKeep every file in this folder together (the .pck and the native .dll are required).\n'
         'Run SpatialFabricRoomShowcase.exe. Nothing plays or listens at startup. Click to capture the mouse; WASD walks; Esc releases.\n'
         'E plays the room cue THROUGH YOUR DEFAULT OUTPUT DEVICE; Q stops; X stops all; I starts LIVE INPUT (default microphone to default output: use headphones); N starts OSC.\n'
-        'Windows microphone-permission and unsigned-app warnings are expected. Windows only: no macOS/Linux build.\n', encoding='utf-8')
+        'Windows microphone-permission and unsigned-app warnings are expected. Windows only: no macOS/Linux build.\n'
+        'Keep LICENSE and LICENSES/ with this application; LICENSES/ includes Godot engine and third-party notices.\n', encoding='utf-8')
     archive = out / (name + '.zip')
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
         for item in sorted(folder.rglob('*')):
             if item.is_file(): z.write(item, item.relative_to(out))
     manifest = {'name': name, 'version': version, 'engine': data['engine'], 'native_release_dll_sha256': sha(release_dll), 'signed': False, 'files': sorted(str(p.relative_to(folder)) for p in folder.rglob('*') if p.is_file()),
-                'selfcheck': data, 'archive': {'name': archive.name, 'bytes': archive.stat().st_size, 'sha256': sha(archive)}, 'exe_sha256': sha(exe), 'pck_sha256': sha(pck)}
+                'selfcheck': data, 'license_notices': notices, 'archive': {'name': archive.name, 'bytes': archive.stat().st_size, 'sha256': sha(archive)}, 'exe_sha256': sha(exe), 'pck_sha256': sha(pck)}
     (out / 'BUILD_MANIFEST.json').write_text(json.dumps(manifest, indent=2) + '\n'); (out / 'SHA256SUMS.txt').write_text(f'{sha(archive)}  {archive.name}\n{sha(exe)}  {exe.name}\n{sha(pck)}  {pck.name}\n')
     print(json.dumps({k: manifest[k] for k in ('name', 'engine', 'files', 'archive', 'selfcheck')}, indent=2))
 

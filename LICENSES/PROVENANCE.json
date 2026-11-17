@@ -1,0 +1,19 @@
+{
+  "engine": "4.7.2-stable (official)",
+  "godot_tag": "4.7.2-stable",
+  "godot_cpp_tag": "godot-4.5-stable",
+  "files": {
+    "godot/LICENSE.txt": {
+      "url": "https://raw.githubusercontent.com/godotengine/godot/ed1daf0bf001b61586d9930840f2f1394092c079/LICENSE.txt",
+      "sha256": "b0435e3b3e4e55238f05f4b306f30524a1b2e20147810d436eaa554fa6855c80"
+    },
+    "godot/COPYRIGHT.txt": {
+      "url": "https://raw.githubusercontent.com/godotengine/godot/ed1daf0bf001b61586d9930840f2f1394092c079/COPYRIGHT.txt",
+      "sha256": "cb1980c88089573bcacd7221d777c689bb8bbd778799f24c27fca0fe5f774d6d"
+    },
+    "godot-cpp/LICENSE.md": {
+      "url": "https://raw.githubusercontent.com/godotengine/godot-cpp/e83fd0904c13356ed1d4c3d09f8bb9132bdc6b77/LICENSE.md",
+      "sha256": "26a5b210d90760156ce886267ce9df235787dcc6cebfd7ecd95ef5b6fdcc95bf"
+    }
+  }
+}

@@ -12,9 +12,10 @@ Nothing binds, sends, loads a source or plays on startup, and there is no Godot 
 
 | Repository | Purpose |
 |---|---|
-| [SpatialFabric](https://github.com/NPLAudio/SpatialFabric) | Unreal implementation and independent OSC Controller |
+| [SpatialFabric-Unreal](https://github.com/NPLAudio/SpatialFabric-Unreal) | Unreal implementation |
 | [SpatialFabric-Unity](https://github.com/NPLAudio/SpatialFabric-Unity) | Unity implementation and native audio backend |
-| [SpatialFabric-Interop](https://github.com/NPLAudio/SpatialFabric-Interop) | Shared OSC/scene schemas and golden fixtures |
+| [SpatialFabric](https://github.com/NPLAudio/SpatialFabric) | Canonical hub: Specs, Schemas, Fixtures and independent OSC Controller (`Apps/OSCController`) |
+| [SpatialFabric-Godot](https://github.com/NPLAudio/SpatialFabric-Godot) | This Godot integration and four-room example |
 | [AudioLoom](https://github.com/NPLAudio/AudioLoom) | Legacy standalone Unreal playback; private/access-controlled |
 
 This Godot repository is local so far; publishing is a separate step. Shared contracts do
@@ -66,7 +67,8 @@ Project Settings > Rendering > Renderer to *Compatibility*: the scene still runs
 ## Connect the OSC Controller
 
 Godot uses the same default ports as the Unreal plugin, so the controller's defaults already match; load
-`examples/four_rooms/OSCControllerProfile.json` (also shipped as `profiles/spatialfabric-godot.json`) only to get the Godot cue bases
+`examples/four_rooms/OSCControllerProfile.json` (also shipped as `profiles/spatialfabric-godot.json` in the controller distribution;
+source: [`Apps/OSCController/profiles/spatialfabric-godot.json`](https://github.com/NPLAudio/SpatialFabric/blob/main/Apps/OSCController/profiles/spatialfabric-godot.json)) only to get the Godot cue bases
 (`/godot/...`) and the live-input cue, then **Start all receivers**. Only one engine app can own the input ports at a time. Press **N** in the example: it starts OSC listening
 (inputs `8100`/`9000`) **and turns ADM output on** (xyz to `50018`, observed `/state` to `9001`); the HUD names these ports.
 Outside the example, `start_networking()` alone sends nothing until you set `adm_enabled = true`. Unchanged positions are
@@ -80,7 +82,9 @@ included. Custom-protocol output (`9002`) is not implemented. If the controller 
 portable editor works) and the **release** native library (`python Tools/build_native.py --targets template_release`), run
 `python Tools/export_windows.py --godot <console exe> --output <new empty dir>`. It exports, verifies that only the release DLL
 ships, runs the built-in headless self-check (`game.exe -- --sf-selfcheck report.json [--sf-shot view.png]`), takes a windowed
-screenshot, and writes a ZIP, checksums and manifest. Keep the `.exe`, `.pck` and `.dll` together. **Unsigned**, Windows only, and
+screenshot, and writes a ZIP, checksums and manifest. It bundles project/native MIT licenses and the pinned Godot engine,
+engine third-party and godot-cpp notices under `LICENSES/` (see `LICENSES/README.md`). Missing or changed notices and
+unsupported engine versions fail packaging; no network access is needed. Keep the `.exe`, `.pck`, `.dll` and notices together. **Unsigned**, Windows only, and
 **E plays through the default output device**; **I** opens the default microphone.
 
 ## Architecture and contracts
@@ -103,6 +107,28 @@ ADM **50018**, Custom **9002** (Custom output is not implemented). Inputs bind o
 opt-in (`adm_enabled`). Cue bases `/godot/playback/{mono,stereo,replay}` accept `/play`,
 `/stop`, `/loop` with AudioLoom's numeric semantics and report observed `/state` to the
 monitor port. Missing or duplicate authored keys fail closed and are never repaired by discovery.
+
+### Cue acknowledgements and status
+
+Every command under a known playback/live cue base returns `<base>/ack ,ssis`
+`command result playing detail` to **`monitor_host:monitor_port`** (default 9001), not the sender.
+`playing` is an observed int 0/1; `/state` remains float 0/1. `/play` `received` means a
+start request only: worker startup sends `/state 1`, or asynchronous failure sends a second
+`ack play failed 0 <reason>`. Missing source/backend and synchronous refusals return `failed`
+immediately. Play still prepares the configured WAV on demand; preparation opens no device.
+
+Address-only `/status` returns `ack status received <playing> ""` followed by `/state <playing>`.
+Stops also publish state 0 when already idle; natural endings publish state 0. `/stop` accepts
+any payload. Non-triggering/non-numeric play and non-numeric playback loop are `ignored`;
+address-only loop disables it. Live `/gain` requires a finite number in 0..4 (first float
+before first int). Invalid gain/status arguments, playback gain, live loop and unknown
+suffixes are `rejected`. Incoming `/ack` and `/state` are engine-only and `ignored`.
+Unknown bases are silent. Echoed suffixes are sanitized printable ASCII, capped at 32 characters;
+details are capped at 256 characters. An unresolved start replaced by another OSC play gets a
+`failed` superseded response; an explicit OSC stop cancels it.
+
+See `Tests/Fixtures/ack-v1.json` for golden wire packets and the shared decision table.
+OSC is unauthenticated UDP: loss is possible, so query status to resynchronize.
 
 ## Local validation only
 

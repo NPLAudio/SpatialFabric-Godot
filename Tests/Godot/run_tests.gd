@@ -10,6 +10,7 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
+	await preload("res://Tests/Godot/ack_tests.gd").run(self, check)
 	var stage := SpatialFabricStage.new()
 	stage.dimensions_meters = Vector3(2,2,2)
 	root.add_child(stage)
@@ -226,12 +227,11 @@ func run() -> void:
 			if not mono.last_error.is_empty():
 				break
 		await create_timer(0.1).timeout
-		var states := 0
-		while monitor.get_available_packet_count() > 0:
-			states += 1
-			monitor.get_packet()
-		check(mono.loop and not mono.is_playing() and states == 0 and not mono.last_error.is_empty(), "OSC play on an invalid device: loop applied, no false Playing or state")
-		monitor.close()
+		var feedback := preload("res://Tests/Godot/ack_tests.gd").drain(monitor)
+		var states := feedback.filter(func(m): return m.address.ends_with("/state"))
+		var play_acks := feedback.filter(func(m): return m.address.ends_with("/ack") and m.args[0] == "play")
+		check(mono.loop and not mono.is_playing() and states.is_empty() and not mono.last_error.is_empty(), "OSC play on an invalid device: loop applied, no false Playing or state")
+		check(play_acks.size() == 2 and play_acks[0].args == ["play", "received", 0, ""] and play_acks[1].args[1] == "failed" and play_acks[1].args[2] == 0 and str(play_acks[1].args[3]).contains("no default fallback"), "native playback received then async failure ack")
 		# The reported bug: OSC /play on a cue nobody prepared must prepare it on demand, then fail closed on a bad device.
 		var stereo := scene.get_node("Stereo") as SpatialFabricPlaybackCue
 		stereo.device_id = "godot-test-invalid-output"
@@ -242,6 +242,19 @@ func run() -> void:
 			if stereo.last_error.contains("no default fallback"):
 				break
 		check(stereo.is_prepared() and not stereo.is_playing() and stereo.last_error.contains("no default fallback"), "OSC play on an unprepared cue prepares it on demand and reaches the device (fails closed on a bad device)")
+		await create_timer(0.05).timeout
+		feedback = preload("res://Tests/Godot/ack_tests.gd").drain(monitor)
+		play_acks = feedback.filter(func(m): return m.address.ends_with("/ack") and m.args[0] == "play")
+		check(play_acks.size() == 2 and play_acks[0].args[1] == "received" and play_acks[1].args[1] == "failed", "on-demand preparation preserves received then async failure ack")
+		if ClassDB.class_exists("SFNativeLive"):
+			live_cue.input_device_id = "godot-test-invalid-input"
+			live_cue.output_device_id = "godot-test-invalid-output"
+			client.put_packet(SpatialFabricOsc.encode(live_cue.osc_base + "/play", []))
+			await create_timer(0.3).timeout
+			feedback = preload("res://Tests/Godot/ack_tests.gd").drain(monitor)
+			play_acks = feedback.filter(func(m): return m.address == live_cue.osc_base + "/ack" and m.args[0] == "play")
+			check(play_acks.size() == 2 and play_acks[0].args == ["play", "received", 0, ""] and play_acks[1].args[1] == "failed" and play_acks[1].args[2] == 0 and str(play_acks[1].args[3]).contains("no default fallback"), "native live received then async failure ack")
+		monitor.close()
 	manager.stop_networking()
 	check(not manager.is_listening() and probe.open([18300],"127.0.0.1")==OK,"stop releases sockets")
 	probe.close()
@@ -252,6 +265,7 @@ func run() -> void:
 		check(not require_native, "native extension loaded")
 	else:
 		check(ClassDB.instantiate("SFNativePlayer").abi_version() == 1, "native ABI v1")
+		check(ClassDB.instantiate("SFNativePlayer").start(null, "godot-test-invalid-output", 0, false, 20, false) == 0, "native wrapper refuses missing buffer with zero")
 		var pcm := PackedFloat32Array()
 		for i in 480:
 			pcm.append(sin(float(i) * 0.2) * 0.5 + 0.1)

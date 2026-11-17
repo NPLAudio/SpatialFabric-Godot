@@ -72,6 +72,38 @@ Windows x64 release export with the official 4.7.2 templates: the exported build
 the export, and a fresh extraction of the ZIP re-passed with matching SHA-256s. Unsigned; macOS/Linux/web are not exported; no
 physical audio was played. The project gate (98 checks) was re-run on a clean copy because an editor was open on the project.
 
+## Cue ack/status feedback (2026-11-17, local only)
+
+Late-added, removed and freed cue bindings now reconcile lifecycle subscriptions while networking is active (five additional device-free checks).
+A fresh Windows release export also passed headless/windowed self-checks and real ADM UDP verification without audio playback.
+
+- Godot **4.7.2**, Windows x64: **205 checks passed** with a freshly rebuilt
+  **template_debug** native DLL; the earlier no-extension gate passed **176 checks** (fails closed).
+  Evidence: `C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotAckFinalChecks/`
+  and `C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotAckNoNativeChecks/`
+  (`import.log`, `tests.log`, `tests.json` in each).
+- `Tests/Godot/ack_tests.gd`: all 7 golden packets (including UTF-8 detail), all 34 shared
+  decisions through pure classification and manager dispatch/UDP output, monitor-directed
+  UDP status query, observed start/end, async failure deduplication, immediate refusal,
+  unknown-base silence, sanitization, signal reconnect, and device-free restart/status races.
+- `Tests/Godot/run_tests.gd`: real UDP playback/live starts on explicitly nonexistent devices
+  produce `received` then `failed` without false state 1. Unprepared stereo still prepares on
+  demand before reaching the invalid device. Existing short-clip/replay and WAV tests pass.
+- Fixed the GDScript playback start return check (native **1 accepted / 0 refused**) and the
+  wrapper's invalid-buffer return. Debug rebuild:
+  `python -B Tools/build_native.py --targets template_debug`; log:
+  `C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotAckChecks/native-debug-build.log`.
+- Python scaffold suite: **9 passed**. `Tools/sync_native.py --check`,
+  `Tools/sync_interop.py --check`, and `git diff --check` passed. Ack fixture/spec and
+  SHA-256 provenance are vendored locally; runtime needs no sibling repo.
+- Final Godot gates used isolated copies under ignored `build/ack-validation/` and
+  `build/ack-no-native/`: the open editor/game locks the original hot-reload DLL copy.
+  No user editor/game process was stopped. An earlier test exposed sanitizer ASCII-conversion
+  diagnostics; fixed before the clean final gates.
+- **No audible playback or real microphone capture.** Only synthetic/offline workers and
+  explicitly invalid device IDs were started. No release native build/export/ZIP was rebuilt;
+  previous release-export evidence above does not certify these source changes. No commit/push.
+
 ## Not measured / not implemented
 
 - **Physical input or output of any kind** (real capture, latency, drift, feedback handling): channel isolation, fidelity, latency, exclusive mode,

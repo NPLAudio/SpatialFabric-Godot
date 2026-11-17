@@ -6,6 +6,7 @@ extends Node3D
 ## configured ID. "Live" means the native worker really started, not that a start was requested.
 
 signal state_changed(live: bool)
+signal start_failed(detail: String)
 
 @export var persistent_key: String = ""
 @export var osc_base: String = "/godot/live/input"
@@ -31,6 +32,7 @@ var _session: Object
 var _live := false
 var _seen_start := 0
 var _seen_end := 0
+var _start_pending := false
 
 static func native_available() -> bool:
 	return ClassDB.class_exists("SFNativeLive") and ClassDB.instantiate("SFNativeLive").live_abi_version() == 1
@@ -53,6 +55,7 @@ func refresh_input_devices() -> Error:
 
 ## Submits a start REQUEST (may prompt for microphone access). is_live() follows the worker.
 func try_start() -> bool:
+	poll_status()
 	stop()
 	if not ClassDB.class_exists("SFNativeLive"):
 		last_error = "Native live input is not loaded; nothing was started."
@@ -64,6 +67,7 @@ func try_start() -> bool:
 		if last_error.is_empty():
 			last_error = "Native live session refused the start request."
 		return false
+	_start_pending = true
 	last_error = ""
 	return true
 
@@ -77,13 +81,17 @@ func set_gain(value: float) -> bool:
 	return true
 
 func stop() -> void:
+	_start_pending = false
 	if _session != null:
 		_session.stop()
 		observe(_session.status())
 
-func _process(_delta: float) -> void:
+func poll_status() -> void:
 	if _session != null:
 		observe(_session.status())
+
+func _process(_delta: float) -> void:
+	poll_status()
 
 ## Consumes a native status snapshot (public so tests can feed synthetic statuses).
 func observe(status: Dictionary) -> void:
@@ -108,3 +116,9 @@ func observe(status: Dictionary) -> void:
 	if _live and ((ended and not restarted) or not active):
 		_live = false
 		state_changed.emit(false)
+	if _start_pending:
+		if started:
+			_start_pending = false
+		elif status.state == 4:
+			_start_pending = false
+			start_failed.emit(last_error)
