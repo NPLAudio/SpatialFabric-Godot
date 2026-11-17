@@ -276,6 +276,35 @@ func run() -> void:
 		check(final_state == 4 and final_status.started_sequence == 0 and not final_status.error.is_empty(), "invalid device fails without false Playing")
 		native_player.stop()
 		check(native_player.status().state != 2, "stop after failure stays not playing")
+	# The example's N key: starting OSC must also enable ADM output, and the HUD must name where it goes.
+	scene.manager.spatial_input_port = 18500
+	scene.manager.playback_input_port = 19500
+	scene.manager.adm_enabled = false
+	check(not scene.manager.is_listening() and "OSC off" in scene._osc_summary(), "example starts with OSC off")
+	check(scene.toggle_networking() == OK and scene.manager.is_listening() and scene.manager.adm_enabled, "N starts OSC and enables ADM output")
+	var summary: String = scene._osc_summary()
+	check("ADM xyz" in summary and ":%d" % scene.manager.adm_port in summary and ":%d" % scene.manager.monitor_port in summary, "HUD names the ADM and state output ports")
+	var adm_sink := PacketPeerUDP.new()
+	check(adm_sink.bind(scene.manager.adm_port, "127.0.0.1") == OK, "ADM destination socket")
+	var got_adm := false
+	for tick in 60:
+		await create_timer(0.02).timeout
+		if adm_sink.get_available_packet_count() > 0:
+			got_adm = SpatialFabricOsc.decode(adm_sink.get_packet()).ok
+			break
+	check(got_adm, "toggling networking on really sends ADM packets to the configured port")
+	# Static object 4 never moves: it must still be (re-)sent so a late-starting receiver learns it.
+	scene.manager.adm_refresh_seconds = 0.2
+	var object_4_packets := 0
+	for tick in 70:
+		await create_timer(0.02).timeout
+		while adm_sink.get_available_packet_count() > 0:
+			var decoded := SpatialFabricOsc.decode(adm_sink.get_packet())
+			if decoded.ok and decoded.messages[0].address == "/adm/obj/4/xyz":
+				object_4_packets += 1
+	check(object_4_packets >= 2, "static object is refreshed periodically (%d packets)" % object_4_packets)
+	adm_sink.close()
+	check(scene.toggle_networking() == OK and not scene.manager.is_listening() and not scene.manager.adm_enabled, "N again stops OSC and ADM output")
 	var report := {"status":"passed" if failed.is_empty() else "failed", "passed":passed, "failed":failed, "scope":"Godot port: codec, loopback UDP, scene query, ADM and silent native checks. No physical audio certification."}
 	var args := OS.get_cmdline_user_args()
 	if args.size()>0:

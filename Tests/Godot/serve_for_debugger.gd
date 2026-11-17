@@ -24,6 +24,7 @@ func run() -> void:
 	live.output_device_id = "godot-debugger-invalid-output"
 	var manager := scene.get_node("Manager") as SpatialFabricManager
 	var result := manager.start_networking()
+	manager.adm_enabled = true # so a controller/tracker can be verified against a real sending engine
 	if result != OK:
 		push_error("Could not start networking: " + manager.last_error)
 		quit(1)

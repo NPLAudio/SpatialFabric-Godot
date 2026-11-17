@@ -20,11 +20,15 @@ extends Node3D
 @export var monitor_host: String = "127.0.0.1"
 @export_enum("XYZ", "AED", "Both") var adm_mode: int = 0
 @export_range(1.0, 240.0) var adm_rate_hz: float = 30.0
+## Unchanged positions are re-sent this often so a receiver that starts later (or misses a packet) still learns
+## every object, including static ones. 0 sends only on change.
+@export_range(0.0, 60.0) var adm_refresh_seconds: float = 1.0
 var last_error: String = ""
 var transport: SpatialFabricTransport
 var queries_answered := 0
 var queries_ignored := 0
 var _adm_clock := 0.0
+var _adm_refresh_clock := 0.0
 var _adm_last: Dictionary = {}
 var _adm_sent := 0
 
@@ -142,6 +146,10 @@ func _process(delta: float) -> void:
 			transport.send(message.ip, request.reply_port, packet)
 		queries_answered += 1
 	if adm_enabled:
+		_adm_refresh_clock += delta
+		if adm_refresh_seconds > 0.0 and _adm_refresh_clock >= adm_refresh_seconds:
+			_adm_refresh_clock = 0.0
+			_adm_last.clear() # forces every object to be re-sent once
 		_adm_clock += delta
 		if _adm_clock >= 1.0 / adm_rate_hz:
 			_adm_clock = 0.0

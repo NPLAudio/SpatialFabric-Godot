@@ -19,6 +19,22 @@ static func cue_name_at(point: Vector3) -> String:
 		return "Replay"
 	return ""
 
+## Explicit user action. Starting also enables ADM position output (otherwise the example would listen but send nothing);
+## stopping turns it off again. Returns the manager's start result.
+func toggle_networking() -> Error:
+	if manager.is_listening():
+		manager.stop_networking()
+		manager.adm_enabled = false
+		return OK
+	var result := manager.start_networking()
+	manager.adm_enabled = result == OK
+	return result
+
+func _osc_summary() -> String:
+	if not manager.is_listening():
+		return "OSC off (N): ADM output, state output and inputs are all stopped"
+	return "OSC ON — in %d/%d • ADM xyz → %s:%d • state → %s:%d" % [manager.spatial_input_port, manager.playback_input_port, manager.adm_host, manager.adm_port, manager.monitor_host, manager.monitor_port]
+
 func _current_cue() -> SpatialFabricPlaybackCue:
 	var visitor := get_node_or_null("Visitor") as Node3D
 	if visitor == null:
@@ -54,10 +70,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				else:
 					live.try_start()
 		KEY_N:
-			if manager.is_listening():
-				manager.stop_networking()
-			else:
-				manager.start_networking()
+			toggle_networking()
 
 func _box(label: String, center: Vector3, size: Vector3, color: Color) -> void:
 	var body := StaticBody3D.new()
@@ -193,9 +206,9 @@ func _hud_text() -> String:
 		line += "\nLive input (I): %s  peak %.2f  latency %.0f ms  xruns %d/%d — headphones or low gain: mic to speakers feeds back" % ["LIVE" if live.is_live() else "off", live.input_peak, live.latency_ms, live.underruns, live.overruns]
 		if not live.last_error.is_empty():
 			line += "\nlive: " + live.last_error
-	var network := "LISTENING" if manager.is_listening() else "off"
+	var network := _osc_summary()
 	var native := "loaded" if SpatialFabricPlaybackCue.native_available() else "NOT loaded"
-	return "SPATIALFABRIC GODOT\nClick capture • WASD • Shift • Space • Esc release • X stop all • N network (%s)\nNative audio: %s. Nothing starts automatically; E uses the default output device.\n%s" % [network, native, line]
+	return "SPATIALFABRIC GODOT\nClick capture • WASD • Shift • Space • Esc release • X stop all • N OSC on/off\n%s\nNative audio: %s. Nothing starts automatically; E uses the default output device.\n%s" % [network, native, line]
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or origins.size()!=4: return

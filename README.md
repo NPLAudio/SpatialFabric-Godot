@@ -56,6 +56,17 @@ drift servo; underruns/overruns and an input peak are reported. **Mic to nearby 
 use headphones or low gain. macOS exports need a microphone usage description; macOS capture is unbuilt.
 **No test has ever opened a real microphone; physical latency/quality is unverified.**
 
+## Connect the OSC Controller
+
+Godot deliberately uses ports that do not collide with Unreal or Unity, so the controller's *default* ports will hear nothing.
+In the OSC Controller choose **Load profile...** and pick `examples/four_rooms/OSCControllerProfile.json` (also shipped as
+`profiles/spatialfabric-godot.json`), then **Start all receivers**. Press **N** in the example: it starts OSC listening
+(inputs `8300`/`9200`) **and turns ADM output on** (xyz to `50029`, observed `/state` to `9201`); the HUD names these ports.
+Outside the example, `start_networking()` alone sends nothing until you set `adm_enabled = true`. Unchanged positions are
+re-sent every `adm_refresh_seconds` (default 1 s) so a controller that starts later still learns every object, static ones
+included. Custom-protocol output (`9202`) is not implemented. If the controller still shows nothing, run the OSC Controller's
+**Debugger / test bed** on the same ports, or check the ports in the HUD against the controller's receiver list.
+
 ## Release export (Windows x64)
 
 `export_presets.cfg` defines a *Windows Desktop* release export. With Godot 4.7.2 plus its Windows export templates (a self-contained
