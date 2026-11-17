@@ -41,6 +41,23 @@ def main():
     check = out / 'evidence/selfcheck.json'
     subprocess.run([str(runner), '--headless', '--audio-driver', 'Dummy', '--', '--sf-selfcheck', str(check)], check=True, timeout=120, capture_output=True)
     data = json.loads(check.read_text()); assert data['status'] == 'passed' and data['exported_template'], data
+    # The exported build must really SEND ADM when OSC is switched on (the N key's code path): verify with a real receiver.
+    import socket, threading, time
+    sink = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); sink.bind(('127.0.0.1', 0)); sink.settimeout(0.05); adm_port = sink.getsockname()[1]
+    seen, stop = set(), threading.Event()
+    def listen():
+        while not stop.is_set():
+            try: packet, _ = sink.recvfrom(65535)
+            except socket.timeout: continue
+            seen.add(packet.split(b'\0', 1)[0].decode('ascii', 'replace'))
+    thread = threading.Thread(target=listen, daemon=True); thread.start()
+    osc = out / 'evidence/selfcheck-osc.json'
+    subprocess.run([str(runner), '--headless', '--audio-driver', 'Dummy', '--', '--sf-selfcheck', str(osc), '--sf-osc', '--sf-adm-port', str(adm_port)], check=True, timeout=120, capture_output=True)
+    time.sleep(0.3); stop.set(); thread.join(); sink.close()
+    osc_data = json.loads(osc.read_text())
+    expected = {f'/adm/obj/{i}/xyz' for i in (1, 2, 3, 4)}
+    assert osc_data['osc_started'] and osc_data['adm_enabled_after_start'] and expected <= seen, (osc_data, sorted(seen))
+    data['osc_output_verified'] = sorted(expected)
     shot, check2 = out / 'evidence/exported.png', out / 'evidence/selfcheck-windowed.json'
     subprocess.run([str(exe), '--audio-driver', 'Dummy', '--resolution', '1280x720', '--', '--sf-selfcheck', str(check2), '--sf-shot', str(shot)], check=True, timeout=120, capture_output=True)
     assert shot.is_file() and json.loads(check2.read_text())['status'] == 'passed'

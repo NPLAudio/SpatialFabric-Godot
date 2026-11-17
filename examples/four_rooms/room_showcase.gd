@@ -183,6 +183,19 @@ func _selfcheck(report_path: String, shot_path: String) -> void:
 		"playing_at_startup": playing,
 		"live_at_startup": live != null and live.is_live(),
 	}
+	var user_args := OS.get_cmdline_user_args()
+	if user_args.has("--sf-osc"):
+		# Prove the exported build really sends: same code path as the N key, on test ports.
+		manager.spatial_input_port = 18710
+		manager.playback_input_port = 19710
+		var port_at := user_args.find("--sf-adm-port")
+		if port_at >= 0 and port_at + 1 < user_args.size():
+			manager.adm_port = int(user_args[port_at + 1])
+		report["osc_started"] = toggle_networking() == OK
+		report["adm_enabled_after_start"] = manager.adm_enabled
+		await get_tree().create_timer(1.5).timeout
+		report["adm_packets_sent_counter"] = manager._adm_sent
+		toggle_networking()
 	if shot_path != "":
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(shot_path)
