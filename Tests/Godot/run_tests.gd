@@ -74,7 +74,10 @@ func run() -> void:
 	check(manager.get_scene_page().has("error") and b.persistent_key==a.persistent_key,"duplicate keys rejected without discovery repair")
 	b.persistent_key = original
 	var cue := scene.get_node("Mono") as SpatialFabricPlaybackCue
-	check(not cue.try_play() and not cue.is_playing() and not cue.is_prepared() and not cue.last_error.is_empty(), "unprepared cue refuses play without a mixer fallback")
+	cue.device_id = "godot-test-invalid-output" # Play prepares on demand, so keep every test start on an invalid device
+	var bare := SpatialFabricPlaybackCue.new()
+	check(not bare.try_play() and not bare.is_playing() and not bare.last_error.is_empty(), "cue without a source refuses to play (no mixer fallback)")
+	bare.free()
 	cue.stop()
 	check(not cue.is_playing(), "stop never invents Playing state")
 	check(SpatialFabricPlaybackControl.should_play([]) and SpatialFabricPlaybackControl.should_play([0.5]) and not SpatialFabricPlaybackControl.should_play([0.49]) and SpatialFabricPlaybackControl.should_play([1]) and not SpatialFabricPlaybackControl.should_play([0]) and not SpatialFabricPlaybackControl.should_play(["go"]), "play trigger semantics")
@@ -229,6 +232,16 @@ func run() -> void:
 			monitor.get_packet()
 		check(mono.loop and not mono.is_playing() and states == 0 and not mono.last_error.is_empty(), "OSC play on an invalid device: loop applied, no false Playing or state")
 		monitor.close()
+		# The reported bug: OSC /play on a cue nobody prepared must prepare it on demand, then fail closed on a bad device.
+		var stereo := scene.get_node("Stereo") as SpatialFabricPlaybackCue
+		stereo.device_id = "godot-test-invalid-output"
+		check(not stereo.is_prepared(), "stereo cue starts unprepared")
+		client.put_packet(SpatialFabricOsc.encode("/godot/playback/stereo/play", []))
+		for tick in 120:
+			await create_timer(0.025).timeout
+			if stereo.last_error.contains("no default fallback"):
+				break
+		check(stereo.is_prepared() and not stereo.is_playing() and stereo.last_error.contains("no default fallback"), "OSC play on an unprepared cue prepares it on demand and reaches the device (fails closed on a bad device)")
 	manager.stop_networking()
 	check(not manager.is_listening() and probe.open([18300],"127.0.0.1")==OK,"stop releases sockets")
 	probe.close()

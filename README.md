@@ -28,7 +28,7 @@ Use Godot **4.7.2 Standard** (GDScript; no .NET). Build the native library first
 example still runs and cues report that native audio is not loaded.
 
 Click to capture the mouse; **WASD** walk, **Shift** sprint, **Space** jump, **Esc** release.
-In a playback room: **E** prepare (first use) and request playback, **Q** stop, **L** loop,
+In a playback room: **E** requests playback (Play prepares the cue's WAV on demand, which opens no device), **Q** stop, **L** loop,
 **R** auto-replay. **X** stops all cues. **I** starts/stops **live input** (default microphone/line
 in to the default output; see below). **N** starts/stops OSC networking. The HUD shows
 the observed state; "playing" means the native worker actually started, not that a request
@@ -55,6 +55,13 @@ Nothing opens a microphone until an explicit `try_start()` (the example's **I** 
 drift servo; underruns/overruns and an input peak are reported. **Mic to nearby speakers feeds back:**
 use headphones or low gain. macOS exports need a microphone usage description; macOS capture is unbuilt.
 **No test has ever opened a real microphone; physical latency/quality is unverified.**
+
+## Rendering and look
+
+The example uses the **Forward+ renderer (needs Vulkan)**: lit PBR materials with a polished tiled floor, a shadow-casting light
+in every room, glowing door frames and stage outline, emissive OSC objects that light their surroundings in their own colour,
+and a `WorldEnvironment` (ambient light, filmic tone mapping, glow, SSAO, light fog, 4x MSAA). On hardware without Vulkan, switch
+Project Settings > Rendering > Renderer to *Compatibility*: the scene still runs but loses SSAO/glow and looks flatter.
 
 ## Connect the OSC Controller
 

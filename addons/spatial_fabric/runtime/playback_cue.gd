@@ -20,6 +20,7 @@ signal state_changed(playing: bool)
 var last_error: String = ""
 var last_device_json: String = ""
 var _buffer: Object
+var _prepared_path := ""
 var _player: Object
 var _playing := false
 var _replay_remaining := -1.0
@@ -55,6 +56,7 @@ func prepare_source() -> Error:
 		last_error = candidate.get_error()
 		return ERR_INVALID_DATA
 	_buffer = candidate
+	_prepared_path = source_path
 	last_error = ""
 	return OK
 
@@ -75,9 +77,14 @@ func refresh_devices() -> Error:
 ## Submits a start REQUEST. is_playing() becomes true only after the worker reports it started.
 func try_play() -> bool:
 	_replay_remaining = -1.0
-	if not is_prepared():
-		last_error = "Source is not prepared; call prepare_source() explicitly first."
-		return false
+	# Play is itself an explicit action (E key, OSC /play, API call), so it prepares the configured source on demand.
+	# Preparation decodes and copies PCM only; it never opens a device. A changed source_path is re-prepared.
+	if not is_prepared() or _prepared_path != source_path:
+		if source_path.is_empty():
+			last_error = "No source_path is set; there is nothing to play."
+			return false
+		if prepare_source() != OK:
+			return false
 	if _player == null:
 		_player = ClassDB.instantiate("SFNativePlayer")
 	if _player.start(_buffer, device_id, output_channel, exclusive, buffer_ms, loop) != 0:

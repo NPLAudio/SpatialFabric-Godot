@@ -25,7 +25,7 @@ export templates. Validation is local and silent: no physical audio has been pla
     empty PCM rejection, explicit non-playing device inventory, an **invalid device that
     fails without ever reporting Playing**, and OSC play to it with no `/state` emitted.
   - Door capsules/crossings and wall blocking with real physics; room-to-cue mapping.
-- Real OpenGL Compatibility renders of hall, spatial room and a playback room were
+- Real Forward+ (Vulkan) renders of hall, spatial room and a playback room were
   reviewed (RTX 4070 Ti SUPER): geometry, per-room signs and live HUD.
 - Build: `Tools/build_native.py` produced debug and release DLLs from a clean godot-cpp
   clone (`godot-4.5-stable`); the extension loads in Godot 4.7.2.
@@ -47,6 +47,15 @@ OSC gain semantics, read-only discovery row, explicit input inventory, and a liv
 intentionally invalid devices that fails (`no default fallback`) with no live state. The
 vendored native core's 48 silent checks cover the bridge (mapping, resampling, xruns, gain).
 **No real microphone or line input was opened.**
+
+## Playback commands and look (local)
+
+Reproduced "playback commands do not work": OSC `/play` on a cue nobody had prepared was refused ("Source is not prepared"), and
+nothing in the example prepared cues except the E key; my earlier harness pre-prepared them and hid it. `try_play()` now prepares on
+demand (preparing opens no device; tests keep every start on an invalid device). Also found by the export self-check: the **exported**
+player could not read its own cue WAVs (Godot drops raw files that have an import); the three cue files are now "keep (no import)"
+so they ship as-is, and the self-check fails if any cue source does not decode. **107 Godot checks** pass. Visual overhaul reviewed
+in real renders. Not verified: audible output (no sound was played).
 
 ## Controller connectivity (local)
 

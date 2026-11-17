@@ -48,7 +48,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var cue := _current_cue()
 	match event.keycode:
 		KEY_E: # explicit user action: prepares the source on first use, then requests playback
-			if cue != null and (cue.is_prepared() or cue.prepare_source() == OK):
+			if cue != null:
 				cue.try_play()
 		KEY_Q:
 			if cue != null:
@@ -80,10 +80,7 @@ func _box(label: String, center: Vector3, size: Vector3, color: Color) -> void:
 	var cube := BoxMesh.new()
 	cube.size = size
 	mesh.mesh = cube
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = color
-	mesh.material_override = material
+	mesh.material_override = _surface(label, color)
 	body.add_child(mesh)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -91,6 +88,96 @@ func _box(label: String, center: Vector3, size: Vector3, color: Color) -> void:
 	collision.shape = shape
 	body.add_child(collision)
 	add_child(body)
+
+var _floor_texture: ImageTexture
+
+## A 256 px tile with a thin groove, sampled in world space so the floor reads as large polished tiles.
+func _tile_texture() -> ImageTexture:
+	if _floor_texture == null:
+		var image := Image.create(256, 256, false, Image.FORMAT_RGB8)
+		image.fill(Color(0.74, 0.76, 0.80))
+		for i in 256:
+			for w in 3:
+				image.set_pixel(i, w, Color(0.42, 0.44, 0.48))
+				image.set_pixel(w, i, Color(0.42, 0.44, 0.48))
+		image.generate_mipmaps()
+		_floor_texture = ImageTexture.create_from_image(image)
+	return _floor_texture
+
+## Lit PBR surfaces: polished tiled floor, softly lit matte walls and ceilings.
+func _surface(label: String, color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.88
+	if label.contains("foundation"):
+		material.albedo_texture = _tile_texture()
+		material.albedo_color = Color(0.52, 0.52, 0.55) # neutral mid-tone: the tile texture carries the pattern, room lights add the colour
+		material.uv1_triplanar = true
+		material.uv1_world_triplanar = true
+		material.uv1_scale = Vector3(0.25, 0.25, 0.25)
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		material.roughness = 0.42
+		material.metallic = 0.04
+	elif label.contains("ceiling"):
+		material.roughness = 0.95
+	return material
+
+func _glow(color: Color, energy: float) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.emission_enabled = true
+	material.emission = color
+	material.emission_energy_multiplier = energy
+	material.roughness = 0.4
+	return material
+
+func _decor(label: String, center: Vector3, size: Vector3, material: Material) -> void:
+	var mesh := MeshInstance3D.new() # visual only: no collision
+	mesh.name = label
+	var cube := BoxMesh.new()
+	cube.size = size
+	mesh.mesh = cube
+	mesh.material_override = material
+	mesh.position = center
+	add_child(mesh)
+
+func _light(label: String, point: Vector3, color: Color, energy: float, light_range: float, shadow: bool) -> void:
+	var light := OmniLight3D.new()
+	light.name = label
+	light.position = point
+	light.light_color = color
+	light.light_energy = energy
+	light.omni_range = light_range
+	light.omni_attenuation = 1.3
+	light.shadow_enabled = shadow
+	add_child(light)
+
+func _environment() -> void:
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.015, 0.02, 0.035)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.66, 0.68, 0.74)
+	environment.ambient_light_energy = 0.9
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_exposure = 1.05
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.45
+	environment.glow_bloom = 0.08
+	environment.glow_hdr_threshold = 1.15
+	environment.ssao_enabled = true
+	environment.ssao_radius = 1.2
+	environment.ssao_intensity = 2.0
+	environment.fog_enabled = true
+	environment.fog_light_color = Color(0.1, 0.13, 0.2)
+	environment.fog_density = 0.004
+	environment.adjustment_enabled = true
+	environment.adjustment_contrast = 1.08
+	environment.adjustment_saturation = 1.12
+	var node := WorldEnvironment.new()
+	node.name = "Environment"
+	node.environment = environment
+	add_child(node)
 
 func _sign(text: String, point: Vector3, yaw: float) -> void:
 	var label := Label3D.new()
@@ -114,6 +201,12 @@ func _room(label: String, x_min: float, x_max: float, z_min: float, z_max: float
 		if span.y>span.x:
 			_box(label+" door side",Vector3(x_min,height*0.5,(span.x+span.y)*0.5),Vector3(0.2,height,span.y-span.x),tint)
 	_box(label+" lintel",Vector3(x_min,(height+2.4)*0.5,door),Vector3(0.2,height-2.4,2.2),tint)
+	# Lighting: a ceiling panel with a real shadow-casting light, and a glowing door frame in the room's accent colour.
+	var accent := tint.lerp(Color.WHITE, 0.25)
+	_decor(label+" light panel", Vector3(center.x,height-0.02,center.z), Vector3(clampf(width*0.3,1.0,3.0),0.04,clampf(depth*0.2,1.0,2.0)), _glow(Color(1.0, 0.96, 0.9), 1.15))
+	_light(label+" light", Vector3(center.x,height-0.5,center.z), tint.lerp(Color.WHITE, 0.55), 3.2 if height < 5.0 else 4.2, maxf(width,depth)*1.25, true)
+	_decor(label+" door glow", Vector3(x_min-0.02,2.42,door), Vector3(0.06,0.07,2.25), _glow(accent, 3.2))
+	_decor(label+" threshold", Vector3(x_min+0.3,0.015,door), Vector3(0.6,0.03,2.2), _glow(accent, 1.4))
 	_sign(label,Vector3(x_min-0.15,2.7,door),-PI*0.5)
 	_sign(note,Vector3(x_max-0.2,2.0,center.z),-PI*0.5)
 
@@ -130,6 +223,19 @@ func _ready() -> void:
 	_room("2 / Mono cue",-9,-1,11,17,3.6,14,Color(0.43,0.30,0.22),"WARM PERCUSSION / OUTPUT 1\nE play • Q stop\n/godot/playback/mono")
 	_room("3 / Stereo loop",-9,-1,18,24,3.6,21,Color(0.22,0.4,0.32),"STEREO GROOVE / MATCHING L-R\nE play • Q stop • L loop\n/godot/playback/stereo")
 	_room("4 / Replay cue",-9,-1,25,31,3.6,28,Color(0.34,0.27,0.43),"GLASS & MECHANICAL / OUTPUT 2\nE play • R replay 2.5 s\n/godot/playback/replay")
+	_environment()
+	# Hall: evenly spaced ceiling strips with lights, so the walk between rooms is lit rather than flat.
+	for z in [-5.0, 5.0, 15.0, 25.0]:
+		_decor("Hall light panel", Vector3(-11.5,3.58,z), Vector3(1.4,0.04,3.2), _glow(Color(1.0, 0.95, 0.88), 1.9))
+		_light("Hall light", Vector3(-11.5,3.0,z), Color(1.0, 0.93, 0.82), 3.2, 10.0, false)
+	# Spatial room: corner lights and a glowing outline of the stage footprint.
+	for corner in [Vector2(-6,-6), Vector2(6,-6), Vector2(-6,6), Vector2(6,6)]:
+		_light("Stage light", Vector3(corner.x,5.4,corner.y), Color(0.7, 0.88, 1.0), 4.0, 15.0, true)
+	var outline := _glow(Color(0.25, 0.75, 0.95), 2.2)
+	_decor("Stage outline N", Vector3(0,0.02,-8.0), Vector3(16,0.04,0.12), outline)
+	_decor("Stage outline S", Vector3(0,0.02,8.0), Vector3(16,0.04,0.12), outline)
+	_decor("Stage outline W", Vector3(-8.0,0.02,0), Vector3(0.12,0.04,16), outline)
+	_decor("Stage outline E", Vector3(8.0,0.02,0), Vector3(0.12,0.04,16), outline)
 	for i in 4:
 		var item := get_node("Object"+str(i+1)) as SpatialFabricObject
 		origins.append(item.position)
@@ -138,11 +244,14 @@ func _ready() -> void:
 		sphere.radius = 0.25
 		sphere.height = 0.5
 		mesh.mesh = sphere
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.albedo_color = Color.from_hsv(float(i)/4.0,0.6,0.95)
-		mesh.material_override = material
+		var tint := Color.from_hsv(float(i)/4.0,0.65,1.0)
+		mesh.material_override = _glow(tint, 2.4)
 		item.add_child(mesh)
+		var glow := OmniLight3D.new() # each OSC object lights its surroundings in its own colour
+		glow.light_color = tint
+		glow.light_energy = 1.6
+		glow.omni_range = 4.5
+		item.add_child(glow)
 	if not Engine.is_editor_hint():
 		var visitor := CharacterBody3D.new()
 		visitor.name = "Visitor"
@@ -172,7 +281,16 @@ func _selfcheck(report_path: String, shot_path: String) -> void:
 	for cue_node in manager._cues():
 		playing = playing or cue_node.is_playing()
 	var live := get_node_or_null("Live") as SpatialFabricLiveInputCue
+	var sources_ok := true
+	var source_errors := {}
+	for cue_node in manager._cues():
+		var decoded := SpatialFabricWav.load_file(cue_node.source_path)
+		sources_ok = sources_ok and decoded.ok
+		if not decoded.ok:
+			source_errors[cue_node.source_path] = decoded.error
 	var report := {
+		"sources_decodable": sources_ok,
+		"source_errors": source_errors,
 		"engine": Engine.get_version_info().string,
 		"exported_template": OS.has_feature("template"),
 		"native_playback": SpatialFabricPlaybackCue.native_available(),
@@ -200,7 +318,7 @@ func _selfcheck(report_path: String, shot_path: String) -> void:
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(shot_path)
 		report["screenshot"] = shot_path
-	report["status"] = "passed" if report.native_playback and report.native_live_input and report.inventory_records == 10 and report.inventory_error == "" and not report.listening_at_startup and not report.playing_at_startup and not report.live_at_startup else "failed"
+	report["status"] = "passed" if report.sources_decodable and report.native_playback and report.native_live_input and report.inventory_records == 10 and report.inventory_error == "" and not report.listening_at_startup and not report.playing_at_startup and not report.live_at_startup else "failed"
 	var file := FileAccess.open(report_path, FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(report, "\t"))

@@ -16,9 +16,7 @@ func run() -> void:
 	await process_frame
 	for cue_name in ["Mono", "Stereo", "Replay"]:
 		var cue := scene.get_node(cue_name) as SpatialFabricPlaybackCue
-		cue.device_id = "godot-debugger-invalid-output"
-		if SpatialFabricPlaybackCue.native_available():
-			cue.prepare_source() # explicit and silent; the start will fail on the invalid device
+		cue.device_id = "godot-debugger-invalid-output" # Play prepares on demand; the start then fails on this device
 	var live := scene.get_node("Live") as SpatialFabricLiveInputCue
 	live.input_device_id = "godot-debugger-invalid-input"
 	live.output_device_id = "godot-debugger-invalid-output"

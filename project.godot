@@ -12,7 +12,7 @@ config_version=5
 
 config/name="SpatialFabric Godot — Wireframe"
 run/main_scene="res://examples/four_rooms/room_showcase.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
+config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]
 
@@ -25,6 +25,8 @@ enabled=PackedStringArray("res://addons/spatial_fabric/plugin.cfg")
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=0
 environment/defaults/default_clear_color=Color(0.08, 0.1, 0.13, 1)
