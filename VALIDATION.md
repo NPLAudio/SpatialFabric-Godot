@@ -51,7 +51,7 @@ vendored native core's 48 silent checks cover the bridge (mapping, resampling, x
 ## Controller connectivity (local)
 
 Reproduced "Godot sends nothing to the controller": the shipped example sent **zero** packets after N (ADM was never enabled) and,
-once enabled, sent to `50029` while the controller listens on `50018`/`9002`/`9001`. Fixed: N enables ADM, a matching controller
+once enabled, sent to `50018` while the controller listens on `50018`/`9002`/`9001`. Fixed: N enables ADM, a matching controller
 profile ships, unchanged positions refresh every second (static objects were otherwise invisible to a late-starting receiver).
 Verified with the controller's own receivers and tracker against the running engine: all four objects (873 packets in 10 s)
 arrive on the profile's ports. **105 Godot checks** pass. Not verified: a human-operated GUI session with the full controller window.

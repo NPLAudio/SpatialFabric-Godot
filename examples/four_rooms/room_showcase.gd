@@ -126,7 +126,7 @@ func _ready() -> void:
 	# Enclose the hall between rooms too; door gaps are the only entrances.
 	for span in [Vector2(9,11),Vector2(17,18),Vector2(24,25)]:
 		_box("Hall partition",Vector3(-9,1.8,(span.x+span.y)*0.5),Vector3(0.2,3.6,span.y-span.x),Color(0.25,0.3,0.36))
-	_room("1 / Spatial motion",-9,9,-9,9,6,0,Color(0.22,0.37,0.43),"Stage + 4 OSC objects (3 animated)\nOSC inputs 8300 / 9200 after N")
+	_room("1 / Spatial motion",-9,9,-9,9,6,0,Color(0.22,0.37,0.43),"Stage + 4 OSC objects (3 animated)\nOSC inputs 8100 / 9000 after N")
 	_room("2 / Mono cue",-9,-1,11,17,3.6,14,Color(0.43,0.30,0.22),"WARM PERCUSSION / OUTPUT 1\nE play • Q stop\n/godot/playback/mono")
 	_room("3 / Stereo loop",-9,-1,18,24,3.6,21,Color(0.22,0.4,0.32),"STEREO GROOVE / MATCHING L-R\nE play • Q stop • L loop\n/godot/playback/stereo")
 	_room("4 / Replay cue",-9,-1,25,31,3.6,28,Color(0.34,0.27,0.43),"GLASS & MECHANICAL / OUTPUT 2\nE play • R replay 2.5 s\n/godot/playback/replay")

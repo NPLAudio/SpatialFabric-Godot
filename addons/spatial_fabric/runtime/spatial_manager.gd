@@ -8,11 +8,11 @@ extends Node3D
 @export var object_paths: Array[NodePath] = []
 @export var cue_paths: Array[NodePath] = []
 @export var live_paths: Array[NodePath] = []
-@export_range(1024, 65535) var spatial_input_port: int = 8300
-@export_range(1024, 65535) var playback_input_port: int = 9200
-@export_range(1024, 65535) var monitor_port: int = 9201
-@export_range(1024, 65535) var adm_port: int = 50029
-@export_range(1024, 65535) var custom_port: int = 9202
+@export_range(1024, 65535) var spatial_input_port: int = 8100
+@export_range(1024, 65535) var playback_input_port: int = 9000
+@export_range(1024, 65535) var monitor_port: int = 9001
+@export_range(1024, 65535) var adm_port: int = 50018
+@export_range(1024, 65535) var custom_port: int = 9002
 @export var listen_address: String = "127.0.0.1"
 @export var allow_remote_discovery: bool = false
 @export var adm_enabled: bool = false

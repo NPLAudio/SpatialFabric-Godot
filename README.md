@@ -58,13 +58,13 @@ use headphones or low gain. macOS exports need a microphone usage description; m
 
 ## Connect the OSC Controller
 
-Godot deliberately uses ports that do not collide with Unreal or Unity, so the controller's *default* ports will hear nothing.
-In the OSC Controller choose **Load profile...** and pick `examples/four_rooms/OSCControllerProfile.json` (also shipped as
-`profiles/spatialfabric-godot.json`), then **Start all receivers**. Press **N** in the example: it starts OSC listening
-(inputs `8300`/`9200`) **and turns ADM output on** (xyz to `50029`, observed `/state` to `9201`); the HUD names these ports.
+Godot uses the same default ports as the Unreal plugin, so the controller's defaults already match; load
+`examples/four_rooms/OSCControllerProfile.json` (also shipped as `profiles/spatialfabric-godot.json`) only to get the Godot cue bases
+(`/godot/...`) and the live-input cue, then **Start all receivers**. Only one engine app can own the input ports at a time. Press **N** in the example: it starts OSC listening
+(inputs `8100`/`9000`) **and turns ADM output on** (xyz to `50018`, observed `/state` to `9001`); the HUD names these ports.
 Outside the example, `start_networking()` alone sends nothing until you set `adm_enabled = true`. Unchanged positions are
 re-sent every `adm_refresh_seconds` (default 1 s) so a controller that starts later still learns every object, static ones
-included. Custom-protocol output (`9202`) is not implemented. If the controller still shows nothing, run the OSC Controller's
+included. Custom-protocol output (`9002`) is not implemented. If the controller still shows nothing, run the OSC Controller's
 **Debugger / test bed** on the same ports, or check the ports in the HUD against the controller's receiver list.
 
 ## Release export (Windows x64)
@@ -89,8 +89,8 @@ Canonical **front/right/up = Godot -Z/X/Y meters**. Stage dimensions are canonic
 front/right/up, normalized against half extents. ADM XYZ is right/front/up and sphere-limited.
 Scene-v1 `world_transform.position_cm` remains canonical centimeters.
 
-Ports (chosen to coexist with Unreal/Unity): inputs **8300/9200**, monitor **9201**,
-ADM **50029**, Custom **9202** (Custom output is not implemented). Inputs bind only after
+Ports (identical to the Unreal plugin defaults): inputs **8100/9000**, monitor **9001**,
+ADM **50018**, Custom **9002** (Custom output is not implemented). Inputs bind only after
 `start_networking()`, on loopback unless `allow_remote_discovery` is set. Discovery answers
 `/spatialfabric/scene/query` to the sender IP with the shared schema-v1 chunking. ADM is
 opt-in (`adm_enabled`). Cue bases `/godot/playback/{mono,stereo,replay}` accept `/play`,
