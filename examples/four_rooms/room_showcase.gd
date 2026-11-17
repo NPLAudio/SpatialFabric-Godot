@@ -143,6 +143,43 @@ func _ready() -> void:
 		hud.position = Vector2(16,16)
 		canvas.add_child(hud)
 		add_child(canvas)
+		var user_args := OS.get_cmdline_user_args()
+		var check_at := user_args.find("--sf-selfcheck")
+		if check_at >= 0 and check_at + 1 < user_args.size():
+			var shot_at := user_args.find("--sf-shot")
+			_selfcheck.call_deferred(user_args[check_at + 1], user_args[shot_at + 1] if shot_at >= 0 and shot_at + 1 < user_args.size() else "")
+
+## Release gate: verifies an exported build without sound, sockets or devices, then quits.
+## Usage: game.exe -- --sf-selfcheck report.json [--sf-shot view.png]
+func _selfcheck(report_path: String, shot_path: String) -> void:
+	for i in 8:
+		await get_tree().process_frame
+	var page := manager.get_scene_page()
+	var playing := false
+	for cue_node in manager._cues():
+		playing = playing or cue_node.is_playing()
+	var live := get_node_or_null("Live") as SpatialFabricLiveInputCue
+	var report := {
+		"engine": Engine.get_version_info().string,
+		"exported_template": OS.has_feature("template"),
+		"native_playback": SpatialFabricPlaybackCue.native_available(),
+		"native_live_input": SpatialFabricLiveInputCue.native_available(),
+		"inventory_records": page.get("total", -1),
+		"inventory_error": page.get("error", ""),
+		"listening_at_startup": manager.is_listening(),
+		"playing_at_startup": playing,
+		"live_at_startup": live != null and live.is_live(),
+	}
+	if shot_path != "":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(shot_path)
+		report["screenshot"] = shot_path
+	report["status"] = "passed" if report.native_playback and report.native_live_input and report.inventory_records == 10 and report.inventory_error == "" and not report.listening_at_startup and not report.playing_at_startup and not report.live_at_startup else "failed"
+	var file := FileAccess.open(report_path, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(report, "\t"))
+	print(JSON.stringify(report))
+	get_tree().quit(0 if report.status == "passed" else 1)
 
 func _hud_text() -> String:
 	var cue := _current_cue()

@@ -56,6 +56,15 @@ drift servo; underruns/overruns and an input peak are reported. **Mic to nearby 
 use headphones or low gain. macOS exports need a microphone usage description; macOS capture is unbuilt.
 **No test has ever opened a real microphone; physical latency/quality is unverified.**
 
+## Release export (Windows x64)
+
+`export_presets.cfg` defines a *Windows Desktop* release export. With Godot 4.7.2 plus its Windows export templates (a self-contained
+portable editor works) and the **release** native library (`python Tools/build_native.py --targets template_release`), run
+`python Tools/export_windows.py --godot <console exe> --output <new empty dir>`. It exports, verifies that only the release DLL
+ships, runs the built-in headless self-check (`game.exe -- --sf-selfcheck report.json [--sf-shot view.png]`), takes a windowed
+screenshot, and writes a ZIP, checksums and manifest. Keep the `.exe`, `.pck` and `.dll` together. **Unsigned**, Windows only, and
+**E plays through the default output device**; **I** opens the default microphone.
+
 ## Architecture and contracts
 
 - `addons/spatial_fabric/runtime/`: stage, object bindings, manager, OSC codec/transport,

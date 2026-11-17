@@ -1,19 +1,30 @@
-; Original SpatialFabric wireframe project. No automatic transport or playback.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
+
 config/name="SpatialFabric Godot — Wireframe"
 run/main_scene="res://examples/four_rooms/room_showcase.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
-[editor_plugins]
-enabled=PackedStringArray("res://addons/spatial_fabric/plugin.cfg")
-
 [display]
+
 window/size/viewport_width=1280
 window/size/viewport_height=720
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/spatial_fabric/plugin.cfg")
+
 [rendering]
+
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.08, 0.10, 0.13, 1)
+environment/defaults/default_clear_color=Color(0.08, 0.1, 0.13, 1)

@@ -48,6 +48,13 @@ intentionally invalid devices that fails (`no default fallback`) with no live st
 vendored native core's 48 silent checks cover the bridge (mapping, resampling, xruns, gain).
 **No real microphone or line input was opened.**
 
+## Release export (local)
+
+Windows x64 release export with the official 4.7.2 templates: the exported build's own self-check passed headless and windowed
+(release native library loaded, 10-record inventory, nothing listening/playing/live at startup), a screenshot was rendered from
+the export, and a fresh extraction of the ZIP re-passed with matching SHA-256s. Unsigned; macOS/Linux/web are not exported; no
+physical audio was played. The project gate (98 checks) was re-run on a clean copy because an editor was open on the project.
+
 ## Not measured / not implemented
 
 - **Physical input or output of any kind** (real capture, latency, drift, feedback handling): channel isolation, fidelity, latency, exclusive mode,
