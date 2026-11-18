@@ -1,12 +1,12 @@
 {
   "source": "https://github.com/NPLAudio/SpatialFabric-Unity",
-  "commit": "acd1be50908ed4202cebdd45efc70d09efa2d796",
+  "commit": "7fb1de39df4609a100151bece48f700fcb61a126",
   "license": "MIT",
   "sha256": {
-    "spatialfabric_audio.h": "db78149cdadb79f5330dfa3b316a2b7133fce5b0eace27f2156736e37e7b19e4",
-    "src/audio.cpp": "cd8745b020c255f962e47ab7333380162428d08a547468093a23bb8bbb99cb67",
+    "spatialfabric_audio.h": "1fcfc2174b897c06e8f421b2ad2cf51964e530ad1631583e3567b3a0a1a8d03a",
+    "src/audio.cpp": "66e63d276b9e8e7f96fd87247e0c90e8e2b5c7596eaf1c1db8ccd6f8fb6ab416",
     "src/pcm.h": "40bbd2b3d43b74286d48e234a73329cf11b85fa8f7f7a5e4dd8c0d8e7190b20e",
     "src/live.h": "1c2df6b1443d51deb43828741eae78b3d0f414330a91120db83c7e00e3adbf0d",
-    "src/core_audio.inc": "0c91826664511aad6549b27812d70ebd9d36708795ba974626a6a2c6d2909454"
+    "src/core_audio.inc": "821e04a8aaa317ef40d74f000c82ca8bb6890cc78f02322369624bdce996d2b4"
   }
 }

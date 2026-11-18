@@ -95,6 +95,8 @@ public:
         Dictionary result;
         sf_status s = {};
         if (player) sf_player_status(player, &s);
+        result["output_latency_ms"] = player ? sf_player_output_latency_ms(player) : -1.0;
+        result["output_mode"] = player ? sf_player_output_mode(player) : 0;
         result["state"] = s.state; result["reason"] = s.reason;
         result["output_channels"] = s.output_channels; result["output_rate"] = s.output_rate;
         result["exclusive_active"] = s.exclusive_active != 0; result["buffer_frames"] = s.buffer_frames;
@@ -148,6 +150,8 @@ public:
         Dictionary result;
         sf_live_status s = {};
         if (live) sf_live_status_get(live, &s);
+        result["output_latency_ms"] = live ? sf_live_output_latency_ms(live) : -1.0;
+        result["output_mode"] = live ? sf_live_output_mode(live) : 0;
         result["state"] = s.state; result["reason"] = s.reason;
         result["input_channels"] = s.input_channels; result["input_rate"] = s.input_rate;
         result["output_channels"] = s.output_channels; result["output_rate"] = s.output_rate;

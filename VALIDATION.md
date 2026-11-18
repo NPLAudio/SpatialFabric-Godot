@@ -1,7 +1,46 @@
 # Local validation
 
-Status: **early development, not feature parity.** No GitHub Actions, remote, release or
-export templates. Validation is local and silent: no physical audio has been played.
+Status: **early development; full spatial-protocol parity and hardware certification
+are not claimed.** The AudioLoom playback follow-up is tracked in
+[Docs/PARITY.md](Docs/PARITY.md). Validation is local and silent: no physical audio
+has been played.
+
+## AudioLoom follow-up (2026-11-18)
+
+- Godot 4.7.2 Windows: **308 headless/native checks passed**, clean import/runtime gate.
+- **22 Python checks passed**; native/interop source hashes verified.
+- Debug/release wrappers compiled against additive native OS latency/mode APIs.
+- **18 separate editor authoring assertions passed with clean shutdown**, including
+  actual editor Undo, CSV, draft-only source selection and playback/live collision
+  rejection. `Tools/validate_editor.py` copies the project and enables an opt-in
+  EditorPlugin runner in that copy only. Normal editor teardown avoids the former
+  custom SceneTree runner's leaks (also reproduced in an addon-free baseline).
+  Parent-side checks reject warnings/errors/leaks and missing evidence after exit.
+  The CSV fixture is local to the evidence directory, not shared `user://` storage.
+- Main review fixes include EOF-subscriber stop cancellation, disabling replay while
+  pending, global nested-base feedback suppression and editor live-cue conflicts.
+- Fresh Windows release export passed headless/windowed self-checks: native available,
+  10 inventory records, 3 example WAVs decoded, no startup playback/live/network.
+  Explicit ADM loopback received 131 XYZ packets on 4 object addresses; screenshot,
+  notices and local ZIP checks passed. Evidence:
+  `C:/Users/davo_/AppData/Local/Temp/AudioLoom-release-validation-9dlayt1f/`.
+  The current exported DLL matches source bytes and exposes all 24 expected exports.
+  Vendored hashes identify dirty working-tree sources; the older upstream commit alone
+  does not identify them. See [Docs/PARITY.md](Docs/PARITY.md) for hash/scope.
+- No physical playback/capture, fresh macOS or cross-engine packaged migration validation.
+  Existing `project.godot` user edits were preserved.
+
+Latest clean runtime evidence: `%TEMP%/SpatialFabricGodotChecks-r4b0kq9a/`.
+Clean editor evidence: `%TEMP%/SpatialFabricGodotEditor-u8qlgo8d/`.
+
+```sh
+python Tools/validate_godot.py --godot /path/to/godot --require-native
+python Tools/validate_editor.py --godot /path/to/godot
+```
+
+## Earlier validation record
+
+The counts and platform evidence below are historical, not the current gate total.
 
 ## Measured (Windows x64, official Godot 4.7.2.stable.ed1daf0bf)
 
@@ -109,9 +148,10 @@ A fresh Windows release export also passed headless/windowed self-checks and rea
 - **Physical input or output of any kind** (real capture, latency, drift, feedback handling): channel isolation, fidelity, latency, exclusive mode,
   hot-unplug, audible loop/EOF/replay. Needs a human on real hardware.
 - macOS/Linux Godot runtime, Core Audio, exports, other Godot versions.
-- Custom protocol output, multiple keyed destinations, per-binding overrides, listener
-  following, runtime-clone identity, CSV workflows, authoring panels/radar/Undo,
-  query rate limiting. The editor dock has had import-level but no interactive UI test.
+- Spatial-protocol authoring beyond the playback manager: Custom protocol output,
+  multiple keyed destinations, per-binding overrides, listener following,
+  runtime-clone identity, spatial CSV/panels/radar/Undo and query rate limiting.
+  Playback-cue CSV/Undo/source authoring is implemented and separately tested above.
 - The keyboard controls (E/Q/L/R/X/N) are implemented but exercised only through their
   underlying APIs and a render, not by synthetic key events.
 - Other repositories' results are not Godot evidence.

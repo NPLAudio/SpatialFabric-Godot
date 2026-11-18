@@ -9,7 +9,7 @@ signal state_changed(live: bool)
 signal start_failed(detail: String)
 
 @export var persistent_key: String = ""
-@export var osc_base: String = "/godot/live/input"
+@export var osc_base: String = ""
 ## Exact capture endpoint ID; empty selects the system default input.
 @export var input_device_id: String = ""
 ## 0 = all input channels, 1..N = only that input channel.
@@ -27,12 +27,25 @@ var worker_state: int = 0
 var input_peak: float = 0.0
 var underruns: int = 0
 var overruns: int = 0
+## Queue occupancy estimate, not OS output latency.
 var latency_ms: float = 0.0
+var output_latency_ms: float = -1.0
+var output_mode: int = 0
 var _session: Object
 var _live := false
 var _seen_start := 0
 var _seen_end := 0
 var _start_pending := false
+var _active_route: Array = []
+
+func effective_osc_base() -> String:
+	return osc_base if not osc_base.is_empty() else SpatialFabricPlaybackCue.derived_osc_base(self, "live")
+
+func _route() -> Array:
+	return [input_device_id, input_channel, output_device_id, output_channel, exclusive_output, buffer_ms]
+
+func _exit_tree() -> void:
+	stop()
 
 static func native_available() -> bool:
 	return ClassDB.class_exists("SFNativeLive") and ClassDB.instantiate("SFNativeLive").live_abi_version() == 1
@@ -55,8 +68,12 @@ func refresh_input_devices() -> Error:
 
 ## Submits a start REQUEST (may prompt for microphone access). is_live() follows the worker.
 func try_start() -> bool:
+	if Engine.is_editor_hint():
+		last_error = "Live capture is disabled in editor authoring."
+		return false
 	poll_status()
 	stop()
+	_active_route = _route()
 	if not ClassDB.class_exists("SFNativeLive"):
 		last_error = "Native live input is not loaded; nothing was started."
 		return false
@@ -91,10 +108,16 @@ func poll_status() -> void:
 		observe(_session.status())
 
 func _process(_delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	poll_status()
+	if (_live or _start_pending) and _active_route != _route():
+		try_start()
 
 ## Consumes a native status snapshot (public so tests can feed synthetic statuses).
 func observe(status: Dictionary) -> void:
+	output_latency_ms = float(status.get("output_latency_ms", -1.0))
+	output_mode = int(status.get("output_mode", 0))
 	worker_state = status.state
 	input_peak = maxf(input_peak * 0.9, status.get("input_peak", 0.0))
 	underruns = status.get("underruns", 0)

@@ -325,16 +325,22 @@ func _selfcheck(report_path: String, shot_path: String) -> void:
 	print(JSON.stringify(report))
 	get_tree().quit(0 if report.status == "passed" else 1)
 
+static func _output_summary(latency: float, mode: int) -> String:
+	var measurement := "%.2f ms" % latency if latency >= 0.0 else "unavailable"
+	return "OS output latency %s • %s" % [measurement, ["inactive", "shared", "exclusive", "shared fallback"][clampi(mode, 0, 3)]]
+
 func _hud_text() -> String:
 	var cue := _current_cue()
 	var line := "In hallway or spatial room: walk into a playback room"
 	if cue != null:
 		line = "%s  prepared:%s playing:%s loop:%s replay:%s\nE play • Q stop • L loop • R auto-replay" % [cue.name, cue.is_prepared(), cue.is_playing(), cue.loop, cue.auto_replay]
+		line += "\n" + _output_summary(cue.output_latency_ms, cue.output_mode)
 		if not cue.last_error.is_empty():
 			line += "\nlast: " + cue.last_error
 	var live := get_node_or_null("Live") as SpatialFabricLiveInputCue
 	if live != null:
-		line += "\nLive input (I): %s  peak %.2f  latency %.0f ms  xruns %d/%d — headphones or low gain: mic to speakers feeds back" % ["LIVE" if live.is_live() else "off", live.input_peak, live.latency_ms, live.underruns, live.overruns]
+		line += "\nLive input (I): %s  peak %.2f  queue estimate %.0f ms  xruns %d/%d — headphones or low gain: mic to speakers feeds back" % ["LIVE" if live.is_live() else "off", live.input_peak, live.latency_ms, live.underruns, live.overruns]
+		line += "\nLive " + _output_summary(live.output_latency_ms, live.output_mode)
 		if not live.last_error.is_empty():
 			line += "\nlive: " + live.last_error
 	var network := _osc_summary()

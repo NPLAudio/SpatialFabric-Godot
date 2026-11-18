@@ -34,6 +34,19 @@ var _adm_sent := 0
 var _pending_starts: Dictionary = {}
 var _wired_cues: Array[Node] = []
 
+## Diagnostics never repair addresses or touch streams. Explicit shared groups remain allowed.
+func routing_diagnostics() -> Array[String]:
+	var messages: Array[String] = []
+	var addresses: Dictionary = {}
+	for cue in _cues() + _lives():
+		var address: String = cue.effective_osc_base()
+		if not SpatialFabricRoutingPolicy._valid_osc(address):
+			messages.append("Invalid OSC base: " + address)
+		if addresses.has(address):
+			messages.append("Duplicate OSC base: " + address + " (" + str(addresses[address]) + ", " + str(cue.name) + ")")
+		addresses[address] = cue.name
+	return messages
+
 func is_listening() -> bool:
 	return transport != null and transport.is_open()
 
@@ -59,7 +72,7 @@ func _cues() -> Array[SpatialFabricPlaybackCue]:
 	var out: Array[SpatialFabricPlaybackCue] = []
 	for path in cue_paths:
 		var cue := get_node_or_null(path) as SpatialFabricPlaybackCue
-		if cue != null:
+		if cue != null and not out.has(cue):
 			out.append(cue)
 	return out
 
@@ -67,7 +80,7 @@ func _lives() -> Array[SpatialFabricLiveInputCue]:
 	var out: Array[SpatialFabricLiveInputCue] = []
 	for path in live_paths:
 		var live := get_node_or_null(path) as SpatialFabricLiveInputCue
-		if live != null:
+		if live != null and not out.has(live):
 			out.append(live)
 	return out
 
@@ -101,21 +114,21 @@ func _on_live_state(is_live: bool, live: SpatialFabricLiveInputCue) -> void:
 	if is_live:
 		_pending_starts.erase(live)
 	if is_listening():
-		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(live.osc_base + "/state", [1.0 if is_live else 0.0]))
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(live.effective_osc_base() + "/state", [1.0 if is_live else 0.0]))
 
 ## Observed worker lifecycle only (1/0), never an acknowledgement of the request.
 func _on_cue_state(playing: bool, cue: SpatialFabricPlaybackCue) -> void:
 	if playing:
 		_pending_starts.erase(cue)
 	if is_listening():
-		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if playing else 0.0]))
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.effective_osc_base() + "/state", [1.0 if playing else 0.0]))
 
 func _observed(cue: Node) -> bool:
 	return cue.is_live() if cue is SpatialFabricLiveInputCue else cue.is_playing()
 
 func _ack(cue: Node, command: String, result: String, detail: String = "") -> void:
 	if is_listening():
-		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/ack", [SpatialFabricPlaybackControl.safe_command(command), result, 1 if _observed(cue) else 0, detail.left(256)]))
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.effective_osc_base() + "/ack", [SpatialFabricPlaybackControl.safe_command(command), result, 1 if _observed(cue) else 0, detail.left(256)]))
 
 func _on_start_failed(detail: String, cue: Node) -> void:
 	var count: int = _pending_starts.get(cue, 0)
@@ -125,16 +138,34 @@ func _on_start_failed(detail: String, cue: Node) -> void:
 
 func _dispatch_playback(message: Dictionary) -> void:
 	_sync_cue_signals()
-	for live in _lives():
-		_dispatch_cue(live, "live", message)
-	for cue in _cues():
-		_dispatch_cue(cue, "playback", message)
+	var longest := -1
+	# Resolve engine-only endpoints globally before any prefix dispatch. Otherwise
+	# a parent base can acknowledge a child's reflected state/ack indefinitely.
+	for cue in _cues() + _lives():
+		var base: String = cue.effective_osc_base()
+		if not SpatialFabricRoutingPolicy._valid_osc(base):
+			continue
+		if message.address == base + "/ack" or message.address == base + "/state":
+			return
+		if message.address.begins_with(base + "/"):
+			longest = maxi(longest, base.length())
+	# The most-specific registered base owns nested commands. Exact duplicates
+	# intentionally retain fan-out behavior and are diagnosed by authoring tools.
+	for cue in _cues() + _lives():
+		if cue.effective_osc_base().length() == longest:
+			_dispatch_cue(cue, "live" if cue is SpatialFabricLiveInputCue else "playback", message)
 
 func _dispatch_cue(cue: Node, kind: String, message: Dictionary) -> void:
-	var prefix: String = cue.osc_base + "/"
+	var base: String = cue.effective_osc_base()
+	if not SpatialFabricRoutingPolicy._valid_osc(base):
+		return
+	var prefix: String = base + "/"
 	if not message.address.begins_with(prefix):
 		return # Unknown bases never receive feedback.
 	var command: String = message.address.trim_prefix(prefix)
+	# Feedback endpoints are engine output only. Never acknowledge an acknowledgement.
+	if command in ["ack", "state"]:
+		return
 	cue.poll_status() # Ack/status fields are the latest observed worker snapshot.
 	var decision := SpatialFabricPlaybackControl.decision(kind, command, message.args)
 	if decision.result != "received":
@@ -159,7 +190,7 @@ func _dispatch_cue(cue: Node, kind: String, message: Dictionary) -> void:
 	_ack(cue, command, "received")
 	if command == "status" or command == "stop":
 		# Also answer idle stops, which do not produce a state_changed transition.
-		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.osc_base + "/state", [1.0 if _observed(cue) else 0.0]))
+		transport.send(monitor_host, monitor_port, SpatialFabricOsc.encode(cue.effective_osc_base() + "/state", [1.0 if _observed(cue) else 0.0]))
 
 func stop_networking() -> void:
 	for cue in _wired_cues:
@@ -302,7 +333,9 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			row["stage_normalized"] = _array(normalized)
 			row["stage_meters"] = _array(normalized * stage.dimensions_meters * 0.5)
 		elif item is SpatialFabricPlaybackCue:
-			row["osc_base"] = item.osc_base
+			row["osc_base"] = item.effective_osc_base()
+			row["output_latency_ms"] = item.output_latency_ms
+			row["output_mode"] = item.output_mode
 			row["output_channel"] = item.output_channel
 			row["playing"] = item.is_playing()
 			row["prepared"] = item.is_prepared()
@@ -310,9 +343,11 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 			row["backend_status"] = "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"
 			row["last_error"] = item.last_error
 		elif item is SpatialFabricLiveInputCue:
-			row["osc_base"] = item.osc_base
-			row["controls"] = {"play": item.osc_base + "/play", "stop": item.osc_base + "/stop", "gain": item.osc_base + "/gain"}
-			row["state_address"] = item.osc_base + "/state"
+			row["osc_base"] = item.effective_osc_base()
+			row["output_latency_ms"] = item.output_latency_ms
+			row["output_mode"] = item.output_mode
+			row["controls"] = {"play": item.effective_osc_base() + "/play", "stop": item.effective_osc_base() + "/stop", "gain": item.effective_osc_base() + "/gain"}
+			row["state_address"] = item.effective_osc_base() + "/state"
 			row["input_device_id"] = item.input_device_id
 			row["configured_device_id"] = item.output_device_id
 			row["input_channel"] = item.input_channel
@@ -325,7 +360,7 @@ func get_scene_page(offset: int = 0, limit: int = 64) -> Dictionary:
 		rows.append(row)
 	var end: int = mini(offset + limit, rows.size())
 	var page_rows: Array[Dictionary] = rows.slice(mini(offset, rows.size()), end)
-	var page := {"schema": "org.nplaudio.spatialfabric.scene", "schema_version": 1, "engine": "Godot", "world": scope.scene_file_path, "world_type": "Editor" if Engine.is_editor_hint() else "Game", "snapshot_utc": Time.get_datetime_string_from_system(true) + "Z", "coordinates": "Canonical front/right/up = Godot -Z/X/Y meters; world_transform.position_cm is canonical centimeters.", "playback_network": {"listening": is_listening(), "status": "listening" if is_listening() else "stopped", "requested_port": playback_input_port, "native_playback": "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"}, "offset": offset, "limit": limit, "returned": page_rows.size(), "total": rows.size(), "next_offset": end if end < rows.size() else -1, "objects": page_rows}
+	var page := {"schema": "org.nplaudio.spatialfabric.scene", "schema_version": 1, "engine": "Godot", "world": scope.scene_file_path, "world_type": "Editor" if Engine.is_editor_hint() else "Game", "snapshot_utc": Time.get_datetime_string_from_system(true) + "Z", "coordinates": "Canonical front/right/up = Godot -Z/X/Y meters; world_transform.position_cm is canonical centimeters.", "playback_network": {"listening": is_listening(), "status": "listening" if is_listening() else "stopped", "requested_port": playback_input_port, "native_playback": "available" if SpatialFabricPlaybackCue.native_available() else "unavailable"}, "offset": offset, "limit": limit, "returned": page_rows.size(), "total": rows.size(), "next_offset": end if end < rows.size() else -1, "objects": page_rows, "routing_diagnostics": routing_diagnostics()}
 	if JSON.stringify(page).to_utf8_buffer().size() > 96 * 1024:
 		return _error("Page exceeds 96 KiB.")
 	return page

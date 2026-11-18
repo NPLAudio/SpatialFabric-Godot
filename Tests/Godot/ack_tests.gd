@@ -88,7 +88,10 @@ static func run(tree: SceneTree, check: Callable) -> void:
 		await tree.create_timer(0.01).timeout
 		var replies := drain(monitor)
 		var acks := replies.filter(func(m): return m.address.ends_with("/ack"))
-		check.call(acks.size() == 1 and acks[0].args == [row.op, row.result, 0, SpatialFabricPlaybackControl.decision(row.kind, row.op, args).detail], "ack dispatch / " + row.kind + " " + row.op + " " + str(args))
+		if row.op in ["ack", "state"]:
+			check.call(replies.is_empty(), "feedback suppressed / " + row.op)
+		else:
+			check.call(acks.size() == 1 and acks[0].args == [row.op, row.result, 0, SpatialFabricPlaybackControl.decision(row.kind, row.op, args).detail], "ack dispatch / " + row.kind + " " + row.op + " " + str(args))
 		# Each decision vector is independent, not a chain of replacement requests.
 		manager._pending_starts.erase(cue)
 		cue.stop()

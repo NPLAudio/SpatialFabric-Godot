@@ -10,6 +10,8 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
+	preload("res://Tests/Godot/routing_tests.gd").run(self, check)
+	preload("res://Tests/Godot/parity_tests.gd").run(self, check)
 	await preload("res://Tests/Godot/ack_tests.gd").run(self, check)
 	var stage := SpatialFabricStage.new()
 	stage.dimensions_meters = Vector3(2,2,2)
@@ -93,6 +95,7 @@ func run() -> void:
 	var broken := tiny.slice(0, 30)
 	check(not SpatialFabricWav.decode(broken).ok, "WAV rejects truncated header")
 	var script: Script = scene.get_script()
+	check(script._output_summary(-1.0, 0).contains("unavailable") and script._output_summary(7.25, 3).contains("7.25 ms") and script._output_summary(7.25, 3).contains("shared fallback"), "HUD displays OS latency and actual fallback mode without inventing inactive latency")
 	check(script.cue_name_at(Vector3(-5, 1, 14)) == "Mono" and script.cue_name_at(Vector3(-5, 1, 21)) == "Stereo" and script.cue_name_at(Vector3(-5, 1, 28)) == "Replay" and script.cue_name_at(Vector3(-11.5, 1, 14)) == "" and script.cue_name_at(Vector3(0, 1, 0)) == "", "room-to-cue mapping")
 	var replay := scene.get_node("Replay") as SpatialFabricPlaybackCue
 	var events: Array = []

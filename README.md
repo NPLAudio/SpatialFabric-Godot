@@ -1,11 +1,14 @@
 # SpatialFabric for Godot — 0.2 early development
 
-**Not a feature-parity port yet.** Includes an original walkable four-room example with
+**Full spatial-protocol parity is not claimed.** Includes an original walkable four-room example with
 real playback controls, stage/object bindings, a strict bounded OSC codec, explicit
 exact-bind UDP, read-only scene discovery, ADM XYZ/AED output, AudioLoom play/stop/loop
 control with observed `/state`, and a **direct-device audio backend** (GDExtension over the
 Unity repo's C ABI). Custom-protocol output and multi-destination routing are not implemented.
-Nothing binds, sends, loads a source or plays on startup, and there is no Godot mixer fallback.
+Nothing binds, sends, loads a source or plays on startup **by default**; per-cue
+`play_on_start` is an explicit runtime-only opt-in. There is no Godot mixer fallback.
+The AudioLoom playback follow-up adds random replay, derived OSC paths, active-route
+restart, editor manager/CSV/Undo and OS-latency diagnostics; see [Docs/PARITY.md](Docs/PARITY.md).
 **Windows is tested silently only; no physical audio has been verified.** See `VALIDATION.md`.
 
 ## SpatialFabric repositories
