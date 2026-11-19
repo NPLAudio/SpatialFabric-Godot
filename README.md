@@ -41,8 +41,13 @@ motion (four objects, three animated), warm percussion (output 1), stereo groove
 (matching L/R, loop), glass/mechanical (output 2, 2.5 s replay) using the same original
 procedural WAVs as the Unreal/Unity examples. Visual walls do not spatialize or isolate PCM.
 
-The editor dock is enabled in the example (Project Settings → Plugins → SpatialFabric);
-**Inspect edited scene** reads the manager only when clicked. For another project copy
+The editor dock is enabled in the example (Project Settings → Plugins → SpatialFabric).
+Its **Scene Objects** tab lists all placed nodes and supports explicit typed SF child attachment,
+bulk SF-only property editing and Undo/Redo; see [Scene Object Manager](Docs/SceneObjectManager.md).
+The separate **Routing Grid** tab provides a virtualized interface/channel crosspoint matrix,
+central cue dropdowns and explicit **Refresh Interfaces**, with offline per-project editor-user history;
+see [Audio Routing Grid](Docs/AudioRoutingMatrix.md). Checks mean configured routes, not live audio.
+The existing **Routing CSV** tab remains available; **Inspect edited scene** reads the manager only when clicked. For another project copy
 `addons/spatial_fabric/`; the example and tests are not runtime dependencies.
 
 ## Live input (microphone / line in)

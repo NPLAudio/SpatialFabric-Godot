@@ -28,6 +28,16 @@ certification. Broader Godot work remains in [ROADMAP.md](ROADMAP.md).
   Accepted changes use one EditorUndoRedoManager transaction with scene persistence.
   Inspection/CSV preview does not open a stream or enable networking.
 
+## Central editor authoring
+
+[Scene Objects](SceneObjectManager.md) lists all nodes in the edited scene, including
+unconfigured nodes, with explicit capability attachment, typed mixed-value editing,
+Undo and ownership-aware persistence. [Routing Grid](AudioRoutingMatrix.md) provides
+true cue-row × interface/channel crosspoints and centralized selectors. Only explicit
+Refresh Interfaces enumerates hardware; exact-ID offline history retains unplugged
+layouts. Checks indicate authored configuration, not live signal. Neither surface
+implicitly enrolls objects or starts audio, capture or networking.
+
 ## CSV and source identity
 
 Native CSV carries the cue node path, WAV source path, routing and replay/startup
@@ -48,7 +58,9 @@ and supported rate/layout checks remain; this is not unlimited streaming.
 Godot **4.7.2**, Windows x64:
 
 - **308 headless/native checks passed**, with clean import/runtime logs.
-- **18 editor authoring assertions passed with clean shutdown**, including actual
+- **149 editor authoring assertions passed with clean shutdown**, including the
+  central scene manager, routing grid, offline cache/selectors, wheel propagation,
+  UTF-8 inventory bounds, unclamped CSV routes and actual
   EditorUndoRedoManager, source draft isolation, CSV round-trip/import and
   playback/live collision rejection. The opt-in test plugin uses the normal editor
   loop in a disposable project; no working scene/project settings are changed.
@@ -56,9 +68,10 @@ Godot **4.7.2**, Windows x64:
 - Debug/release GDExtension wrappers built against the additive mode/latency APIs.
 - Shared native core: **55 silent + 55 fake-COM negotiation/diagnostic checks passed**.
 
-Latest clean runtime gate:
-`C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotChecks-r4b0kq9a/`.
-Clean editor gate:
+Latest clean editor/runtime gate:
+`C:/dev/GodotRouting-20261118-reviewed149-bounddraft/`
+(`editor-tests.json` and `runtime-tests.json`). Earlier playback-only evidence:
+`C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotChecks-r4b0kq9a/` and
 `C:/Users/davo_/AppData/Local/Temp/SpatialFabricGodotEditor-u8qlgo8d/editor-tests.json`.
 
 ```text
@@ -70,7 +83,7 @@ assertions after editor termination. It does not whitelist shutdown diagnostics.
 The CSV fixture stays inside the evidence directory, never the shared `user://` path.
 These are machine-local temporary artifacts, not release certificates.
 
-### Current Windows release export
+### Historical Windows release export (before central manager/routing UI)
 
 A fresh disposable-copy release export passed headless/windowed self-checks, with
 native availability, 10 inventory records, all three retained example WAVs decoded,
@@ -82,9 +95,11 @@ Evidence: `C:/Users/davo_/AppData/Local/Temp/AudioLoom-release-validation-9dlayt
 Source/copied/exported DLL SHA-256:
 `ea11b9471e63f5390bf303e393be7ad0aa538a036ba04fd4873bd53f8d0336c9`.
 All 24 expected exports exist, including latency/mode diagnostics. Vendored hashes
-match current files; three native files differ from the recorded upstream commit,
-so that commit alone does not identify this uncommitted working-tree build.
-This is current example-export evidence, not arbitrary migrated-source certification.
+matched that export's working-tree files; three native files differed from its
+recorded upstream commit. Later clean-snapshot releases refreshed provenance; see
+[the local release manifest](https://github.com/NPLAudio/SpatialFabric/blob/main/Docs/LOCAL_RELEASE_MANIFEST_2026-11-18.json).
+Neither earlier export includes the subsequent central manager/routing UI; source
+publication does not rebuild those archives or certify arbitrary migrated sources.
 
 The former custom `--editor --script` runner's RID/ObjectDB leaks also reproduced
 in an addon-free project. Replacing only that runner architecture resolved them;

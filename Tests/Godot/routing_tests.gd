@@ -73,7 +73,7 @@ static func run(tree: SceneTree, check: Callable) -> void:
 		var missing := row.duplicate(true)
 		missing.erase(key)
 		check.call(not Policy.validate(missing).is_empty(), "required field / " + key)
-	for pair in [["output_channel", -1], ["output_channel", 257], ["output_channel", 1.5], ["buffer_ms", 4], ["buffer_ms", 501], ["exclusive", 1], ["play_on_start", "false"], ["replay_delay_seconds", NAN], ["replay_delay_max", INF], ["replay_delay_min", -1], ["node_path", ""], ["node_path", "Cue:property"], ["source_path", "res://bell.mp3"], ["osc_base", "relative"], ["osc_base", "/bad path"], ["osc_base", "/bad/*"], ["osc_base", "/bad/"], ["device_id", "x".repeat(Policy.MAX_FIELD + 1)]]:
+	for pair in [["output_channel", -1], ["output_channel", 2147483648], ["output_channel", 1.5], ["buffer_ms", 4], ["buffer_ms", 501], ["exclusive", 1], ["play_on_start", "false"], ["replay_delay_seconds", NAN], ["replay_delay_max", INF], ["replay_delay_min", -1], ["node_path", ""], ["node_path", "Cue:property"], ["source_path", "res://bell.mp3"], ["osc_base", "relative"], ["osc_base", "/bad path"], ["osc_base", "/bad/*"], ["osc_base", "/bad/"], ["device_id", "x".repeat(Policy.MAX_FIELD + 1)]]:
 		var invalid := row.duplicate(true)
 		invalid[pair[0]] = pair[1]
 		check.call(not Policy.validate(invalid).is_empty(), "reject invalid / " + str(pair))

@@ -5,7 +5,20 @@ are not claimed.** The AudioLoom playback follow-up is tracked in
 [Docs/PARITY.md](Docs/PARITY.md). Validation is local and silent: no physical audio
 has been played.
 
-## AudioLoom follow-up (2026-11-18)
+## Scene authoring and routing grid (2026-11-18)
+
+- Godot 4.7.2: **149 editor assertions passed**, including the scene-object manager,
+  true crosspoint routing grid, interface/channel selectors, explicit inventory,
+  offline cache, real mouse dispatch, guarded route edits, native Undo/Redo and
+  scene persistence. Import/editor logs and shutdown are clean.
+- **308 native-required runtime assertions** and **22 Python tests passed**.
+- Disposable editor evidence: `C:/dev/GodotRouting-20261118-reviewed149-bounddraft/`.
+  Runtime evidence: `runtime-tests.json` and `runtime.log` in that same folder.
+- See [routing grid notes](Docs/AudioRoutingMatrix.md) for scope and manual graphical /
+  physical hotplug gates. No original editor cache, `project.godot`, native binary,
+  audio stream or capture session was changed by this validation.
+
+## AudioLoom follow-up (earlier gate, 2026-11-18)
 
 - Godot 4.7.2 Windows: **308 headless/native checks passed**, clean import/runtime gate.
 - **22 Python checks passed**; native/interop source hashes verified.
@@ -24,14 +37,16 @@ has been played.
   Explicit ADM loopback received 131 XYZ packets on 4 object addresses; screenshot,
   notices and local ZIP checks passed. Evidence:
   `C:/Users/davo_/AppData/Local/Temp/AudioLoom-release-validation-9dlayt1f/`.
-  The current exported DLL matches source bytes and exposes all 24 expected exports.
-  Vendored hashes identify dirty working-tree sources; the older upstream commit alone
-  does not identify them. See [Docs/PARITY.md](Docs/PARITY.md) for hash/scope.
+  That earlier exported DLL matched its source bytes and exposed all 24 expected exports.
+  Its vendored hashes identified dirty working-tree sources, not just the then-recorded
+  upstream commit. Later clean-snapshot releases refreshed provenance; neither earlier
+  archive includes the subsequent central authoring/routing UI. See
+  [Docs/PARITY.md](Docs/PARITY.md) for historical hash/scope.
 - No physical playback/capture, fresh macOS or cross-engine packaged migration validation.
   Existing `project.godot` user edits were preserved.
 
-Latest clean runtime evidence: `%TEMP%/SpatialFabricGodotChecks-r4b0kq9a/`.
-Clean editor evidence: `%TEMP%/SpatialFabricGodotEditor-u8qlgo8d/`.
+Earlier clean runtime evidence: `%TEMP%/SpatialFabricGodotChecks-r4b0kq9a/`.
+Earlier clean editor evidence: `%TEMP%/SpatialFabricGodotEditor-u8qlgo8d/`.
 
 ```sh
 python Tools/validate_godot.py --godot /path/to/godot --require-native

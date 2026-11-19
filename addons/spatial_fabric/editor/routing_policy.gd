@@ -56,7 +56,7 @@ static func validate(row: Dictionary) -> Array[String]:
 		elif key in INT_FIELDS:
 			if not value is int:
 				errors.append(key + " must be an integer")
-			elif (key == "output_channel" and (value < 0 or value > 256)) or (key == "buffer_ms" and (value < 5 or value > 500)):
+			elif (key == "output_channel" and (value < 0 or value > 2147483647)) or (key == "buffer_ms" and (value < 5 or value > 500)):
 				errors.append(key + " is out of range")
 		elif key in FLOAT_FIELDS:
 			if not (value is float or value is int):

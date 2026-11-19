@@ -12,7 +12,7 @@ signal start_failed(detail: String)
 ## Blank derives a unique hierarchy address; serialized explicit paths are never rewritten.
 @export var osc_base: String = ""
 @export_file("*.wav") var source_path: String = ""
-@export_range(0, 256) var output_channel: int = 0
+@export_range(0, 2147483647) var output_channel: int = 0
 @export var device_id: String = ""
 @export var exclusive: bool = false
 @export_range(5, 500) var buffer_ms: int = 20

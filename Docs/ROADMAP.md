@@ -1,6 +1,11 @@
 # Parity roadmap
 
 ## Implemented surface
+- [Scene Objects manager](SceneObjectManager.md): all edited-scene nodes, explicit
+  capability attachment, typed/mixed shared properties, ownership-aware Undo/persistence.
+- [True audio routing grid](AudioRoutingMatrix.md): cue-row × interface/channel
+  crosspoints, centralized selectors, explicit Refresh Interfaces, bounded exact-ID
+  offline history, guarded native Undo and configured-not-live checks.
 - Original walkable four-room geometry, hallway, capsule visitor and moving markers.
 - Explicit authored keys, stage normalization, canonical Godot -Z/X/Y mapping and ADM math.
 - Read-only bounded local scene-v1 page API and explicit editor inspection.

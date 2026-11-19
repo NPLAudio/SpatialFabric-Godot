@@ -18,11 +18,38 @@ var source_target_id: int = 0
 var file_scene_id: int = 0
 var device_labels: Dictionary = {}
 var committing := false
+var object_manager: VBoxContainer
+var routing_panel: VBoxContainer
 
 func _enter_tree() -> void:
 	dock = VBoxContainer.new()
 	dock.name = "SpatialFabric"
 	dock.custom_minimum_size.x = 320
+	var tabs := TabContainer.new()
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dock.add_child(tabs)
+	object_manager = preload("res://addons/spatial_fabric/editor/scene_object_manager.gd").new()
+	var object_scroll := ScrollContainer.new()
+	object_scroll.name = "Scene Objects"
+	object_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tabs.add_child(object_scroll)
+	object_manager.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	object_scroll.add_child(object_manager)
+	object_manager.setup(self)
+	routing_panel = preload("res://addons/spatial_fabric/editor/audio_routing_panel.gd").new()
+	routing_panel.name = "Routing Grid"
+	tabs.add_child(routing_panel)
+	routing_panel.setup(self)
+	var authoring := VBoxContainer.new()
+	authoring.name = "Routing CSV"
+	tabs.add_child(authoring)
+	_build_routing(authoring)
+	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
+	scene_changed.connect(_scene_changed)
+	get_undo_redo().version_changed.connect(_history_changed)
+	_refresh()
+
+func _build_routing(dock: VBoxContainer) -> void:
 	var title := Label.new()
 	title.text = "Cue authoring (no playback / network)"
 	dock.add_child(title)
@@ -51,7 +78,7 @@ func _enter_tree() -> void:
 		elif key in Policy.INT_FIELDS or key in Policy.FLOAT_FIELDS:
 			var spin := SpinBox.new()
 			spin.min_value = 5 if key == "buffer_ms" else 0
-			spin.max_value = 500 if key == "buffer_ms" else (256 if key == "output_channel" else 3600)
+			spin.max_value = 500 if key == "buffer_ms" else (2147483647 if key == "output_channel" else 3600)
 			spin.allow_greater = key in Policy.FLOAT_FIELDS
 			spin.step = 1 if key in Policy.INT_FIELDS else 0.01
 			control = spin
@@ -61,7 +88,7 @@ func _enter_tree() -> void:
 		grid.add_child(control)
 		fields[key] = control
 	_button(dock, "Choose source WAV (draft only)", _choose_source)
-	_button(dock, "Inventory output devices (no streams)", _inventory)
+	_button(dock, "Refresh Interfaces (see Routing Grid)", _inventory)
 	latency = Label.new()
 	dock.add_child(latency)
 	_button(dock, "Apply draft to selected cue", _apply)
@@ -82,10 +109,6 @@ func _enter_tree() -> void:
 	import_dialog.file_selected.connect(_import_csv)
 	export_dialog = _dialog(FileDialog.FILE_MODE_SAVE_FILE, "*.csv ; Routing CSV")
 	export_dialog.file_selected.connect(_export_csv)
-	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
-	scene_changed.connect(_scene_changed)
-	get_undo_redo().version_changed.connect(_history_changed)
-	_refresh()
 
 func _button(parent: Node, text: String, callback: Callable) -> void:
 	var button := Button.new()
@@ -136,6 +159,10 @@ func _snapshot(cue: Node) -> Dictionary:
 	return row
 
 func _refresh() -> void:
+	if object_manager != null:
+		object_manager.refresh()
+	if routing_panel != null:
+		routing_panel.refresh()
 	cues = _scene_cues()
 	cue_list.clear()
 	var index := -1
@@ -164,6 +191,9 @@ func _select_index(index: int) -> void:
 			control.button_pressed = row[key]
 		elif control is SpinBox:
 			control.value = row[key]
+			# Hidden dock controls may not repaint their LineEdit before Apply.
+			# Keep the editable text bound to this snapshot, not the previous cue.
+			control.get_line_edit().text = str(row[key])
 		else:
 			control.text = str(row[key])
 	var value: Variant = selected.get("output_latency_ms") if _has_property(selected, "output_latency_ms") else -1
@@ -187,24 +217,12 @@ func _source_chosen(path: String) -> void:
 		fields.source_path.text = path
 
 func _inventory() -> void:
-	# Static call avoids even constructing a native player. This is the only inventory path.
-	if not ClassDB.class_exists("SFNativePlayer"):
-		diagnostics.text = "Native extension unavailable; device IDs can still be authored manually."
-		return
-	var result: Dictionary = ClassDB.class_call_static("SFNativePlayer", "devices_json")
-	if not result.get("ok", false):
-		diagnostics.text = str(result.get("error", "Inventory failed"))
-		return
-	var text := str(result.get("json", ""))
-	report.text = text
+	routing_panel.refresh_interfaces()
 	device_labels.clear()
-	var parsed: Variant = JSON.parse_string(text)
-	var devices: Variant = parsed.get("devices", []) if parsed is Dictionary else parsed
-	if devices is Array:
-		for device in devices:
-			if device is Dictionary:
-				device_labels[str(device.get("id", ""))] = str(device.get("name", ""))
-	diagnostics.text = "Explicit output inventory shown in JSON below. Copy the opaque ID into device_id; empty = default. No stream opened."
+	for entry in routing_panel.cache.devices:
+		device_labels[entry.id] = entry.name
+	report.text = JSON.stringify(routing_panel.cache.devices, "\t")
+	diagnostics.text = routing_panel.status.text
 
 func _effective(cue: Node, overrides: Dictionary) -> String:
 	if overrides.has(cue) and not str(overrides[cue].osc_base).is_empty():
@@ -329,6 +347,7 @@ func _commit_rows(rows: Array, messages: PackedStringArray, action: String) -> v
 	if root == null:
 		return
 	var current := _scene_cues()
+	object_manager.cache_scene()
 	var targets: Dictionary = {}
 	var counts: Dictionary = {}
 	for row in rows:
@@ -339,6 +358,10 @@ func _commit_rows(rows: Array, messages: PackedStringArray, action: String) -> v
 		var cue := root.get_node_or_null(NodePath(row.node_path))
 		if cue == null or cue not in current:
 			messages.append("Not a playback cue in this edited scene: " + str(row.node_path))
+			continue
+		var protected_reason: String = object_manager.reason(cue, true)
+		if not protected_reason.is_empty():
+			messages.append("%s: %s" % [row.node_path, protected_reason])
 			continue
 		counts[cue] = int(counts.get(cue, 0)) + 1
 		targets[cue] = row
